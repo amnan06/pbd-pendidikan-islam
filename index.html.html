@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistem Pengurusan Eviden PBD — Pendidikan Islam</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root{
+  --teh:#0E4C42; --teh-2:#146357; --teh-3:#1B7A68;
+  --emas:#C79A4B; --emas-l:#EFD9A6; --emas-d:#9C7530;
+  --krim:#FAF6EC; --kad:#FFFFFF; --tulisan:#1B2621; --tulisan-lembut:#647169;
+  --garis:#E8E1CC; --merah:#B5493D; --hijau-ok:#3E7A4E;
+  --radius:14px; --shadow:0 3px 14px rgba(14,76,66,.08); --shadow-lg:0 14px 40px rgba(14,76,66,.16);
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--krim);color:var(--tulisan);font-family:'Inter',sans-serif;font-size:15px;}
+h1,h2,h3,.display{font-family:'Fraunces',serif;font-weight:600;color:var(--teh);}
+.eyebrow{font-family:'IBM Plex Mono',monospace;letter-spacing:.09em;text-transform:uppercase;font-size:11px;color:var(--emas-d);font-weight:600;}
+button{font-family:'Inter',sans-serif;cursor:pointer;}
+.btn{background:var(--teh);color:#fff;border:none;padding:10px 18px;border-radius:10px;font-weight:600;font-size:13.5px;transition:.15s;box-shadow:0 2px 6px rgba(14,76,66,.18);}
+.btn:hover{background:var(--teh-2);transform:translateY(-1px);}
+.btn.gold{background:linear-gradient(135deg,var(--emas),var(--emas-d));color:#fff;}
+.btn.gold:hover{filter:brightness(1.06);}
+.btn.ghost{background:transparent;color:var(--teh);border:1.5px solid var(--garis);box-shadow:none;}
+.btn.ghost:hover{border-color:var(--teh);transform:none;background:#fff;}
+.btn.danger{background:#fff;color:var(--merah);border:1.5px solid var(--merah);box-shadow:none;}
+.btn.danger:hover{background:var(--merah);color:#fff;transform:none;}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+input,select,textarea{font-family:'Inter',sans-serif;padding:10px 12px;border:1.5px solid var(--garis);border-radius:9px;font-size:14px;background:#fff;color:var(--tulisan);width:100%;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teh-3);box-shadow:0 0 0 3px rgba(20,99,87,.1);}
+label{font-size:12px;font-weight:700;color:var(--tulisan-lembut);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em;}
+.field{margin-bottom:14px;}
+.card{background:var(--kad);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px;border:1px solid rgba(14,76,66,.05);}
+.hidden{display:none !important;}
+#app{min-height:100vh;}
+
+/* geometric star pattern (Islamic motif) as subtle background */
+.geo-pattern{
+  background-image:
+    radial-gradient(circle at 0 0, rgba(255,255,255,.06) 1.5px, transparent 1.6px),
+    radial-gradient(circle at 12px 12px, rgba(255,255,255,.06) 1.5px, transparent 1.6px);
+  background-size:24px 24px;
+}
+
+/* LOGIN */
+#loginView{min-height:100vh;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;
+  background:linear-gradient(160deg,var(--teh) 0%,var(--teh-2) 45%,#0A382F 100%);}
+#loginView::before{content:'';position:absolute;inset:0;
+  background-image:radial-gradient(circle at 1px 1px, rgba(239,217,166,.18) 1.5px, transparent 1.6px);
+  background-size:26px 26px; opacity:.5;}
+#loginView::after{content:'';position:absolute;width:520px;height:520px;border-radius:50%;
+  background:radial-gradient(circle, rgba(199,154,75,.22), transparent 70%); top:-160px; right:-160px;}
+.login-box{position:relative;z-index:2;width:390px;background:var(--kad);border-radius:20px;box-shadow:var(--shadow-lg);padding:40px 36px;}
+.login-mark{width:50px;height:50px;border-radius:13px;background:linear-gradient(135deg,var(--teh-3),var(--teh));color:var(--emas-l);display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:24px;margin-bottom:18px;box-shadow:0 6px 16px rgba(14,76,66,.3);}
+.login-box h1{font-size:23px;margin:0 0 4px;}
+.login-box p.sub{color:var(--tulisan-lembut);font-size:13.5px;margin:0 0 26px;line-height:1.5;}
+.role-toggle{display:flex;gap:8px;margin-bottom:18px;background:var(--krim);padding:4px;border-radius:11px;}
+.role-toggle button{flex:1;padding:9px;border-radius:8px;border:none;background:transparent;font-size:13px;font-weight:700;color:var(--tulisan-lembut);transition:.15s;}
+.role-toggle button.active{background:var(--teh);color:#fff;box-shadow:0 2px 6px rgba(14,76,66,.25);}
+.login-err{color:var(--merah);font-size:13px;margin-top:10px;min-height:16px;font-weight:600;}
+.login-hint{margin-top:20px;font-size:11.5px;color:var(--tulisan-lembut);background:var(--krim);padding:12px 14px;border-radius:10px;line-height:1.7;border:1px dashed var(--garis);}
+
+/* SHELL / SIDEBAR */
+.shell{display:flex;min-height:100vh;}
+.sidebar{width:236px;flex-shrink:0;background:linear-gradient(185deg,var(--teh) 0%,#0A3830 100%);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;position:relative;overflow:hidden;}
+.sidebar::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle at 1px 1px, rgba(239,217,166,.10) 1.4px, transparent 1.5px);background-size:22px 22px;pointer-events:none;}
+.sb-brand{display:flex;align-items:center;gap:11px;padding:24px 20px 20px;position:relative;z-index:1;}
+.sb-mark{width:38px;height:38px;border-radius:10px;background:rgba(239,217,166,.15);border:1px solid rgba(239,217,166,.3);color:var(--emas-l);display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:19px;flex-shrink:0;}
+.sb-title{font-family:'Fraunces',serif;font-weight:600;font-size:15px;line-height:1.2;}
+.sb-sub{font-size:11px;color:var(--emas-l);opacity:.8;}
+.sb-nav{display:flex;flex-direction:column;gap:3px;padding:10px 14px;flex:1;position:relative;z-index:1;}
+.sb-item{display:flex;align-items:center;gap:11px;padding:11px 14px;border-radius:10px;border:none;background:transparent;color:rgba(255,255,255,.72);font-size:13.5px;font-weight:600;text-align:left;transition:.15s;}
+.sb-item span{font-size:16px;}
+.sb-item:hover{background:rgba(255,255,255,.06);color:#fff;}
+.sb-item.active{background:rgba(239,217,166,.15);color:var(--emas-l);box-shadow:inset 3px 0 0 var(--emas);}
+.sb-foot{padding:16px;border-top:1px solid rgba(255,255,255,.1);position:relative;z-index:1;}
+.sb-user{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.sb-avatar{width:34px;height:34px;border-radius:50%;background:var(--emas);color:var(--teh);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12.5px;flex-shrink:0;}
+.sb-uname{font-size:12.5px;font-weight:700;color:#fff;}
+.sb-urole{font-size:10.5px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.04em;}
+.sb-logout{width:100%;color:rgba(255,255,255,.85);border-color:rgba(255,255,255,.25);}
+.sb-logout:hover{border-color:#fff;color:#fff;}
+.main-area{flex:1;min-width:0;}
+.wrap{max-width:1180px;margin:0 auto;padding:30px 32px 60px;}
+
+/* HEADER */
+.page-head{margin-bottom:20px;}
+.page-head h1{margin:4px 0 0;font-size:26px;}
+
+/* GRID/STATS */
+.grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin:16px 0 6px;}
+.stat-card{background:var(--kad);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;border:1px solid rgba(14,76,66,.05);position:relative;overflow:hidden;}
+.stat-card .ic{position:absolute;right:14px;top:14px;font-size:22px;opacity:.35;}
+.stat-card .n{font-family:'Fraunces',serif;font-size:32px;color:var(--teh);font-weight:700;}
+.stat-card .l{font-size:11.5px;color:var(--tulisan-lembut);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-top:2px;}
+
+/* STUDENT CARDS (guru dashboard) */
+.student-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin-top:14px;}
+.student-card{background:var(--kad);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px;border:1px solid rgba(14,76,66,.05);cursor:pointer;transition:.15s;display:flex;flex-direction:column;gap:10px;}
+.student-card:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px);border-color:rgba(199,154,75,.35);}
+.sc-top{display:flex;align-items:center;gap:11px;}
+.sc-avatar{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--teh-3),var(--teh));color:var(--emas-l);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0;}
+.sc-name{font-weight:700;font-size:14.5px;}
+.sc-class{font-size:12px;color:var(--tulisan-lembut);}
+.sc-bottom{display:flex;align-items:center;justify-content:space-between;}
+.sc-ev{font-size:12px;color:var(--tulisan-lembut);}
+
+/* TABLES (admin) */
+table{width:100%;border-collapse:collapse;font-size:13.5px;}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--tulisan-lembut);padding:10px 12px;border-bottom:2px solid var(--garis);font-weight:700;}
+td{padding:12px;border-bottom:1px solid var(--garis);}
+tr:hover td{background:#FBF8EF;}
+.trow{display:flex;align-items:center;gap:9px;}
+.mini-avatar{width:28px;height:28px;border-radius:50%;background:var(--emas-l);color:var(--emas-d);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10.5px;flex-shrink:0;}
+
+.pill{display:inline-block;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:800;letter-spacing:.02em;}
+.pill.tp1,.pill.tp2{background:#FBEAE6;color:var(--merah);}
+.pill.tp3,.pill.tp4{background:#FBF1DE;color:#9A7623;}
+.pill.tp5,.pill.tp6{background:#E4F0E6;color:var(--hijau-ok);}
+.row-actions{display:flex;gap:8px;}
+.row-actions button{padding:6px 11px;font-size:12px;border-radius:7px;}
+.section-head{display:flex;align-items:center;justify-content:space-between;margin:30px 0 4px;}
+.section-head h2{font-size:18px;margin:0;}
+.toolbar{display:flex;gap:10px;align-items:center;margin:14px 0;flex-wrap:wrap;}
+.toolbar select,.toolbar input{width:auto;min-width:170px;}
+.empty{padding:44px 20px;text-align:center;color:var(--tulisan-lembut);}
+.empty .em-ic{font-size:30px;margin-bottom:8px;}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(10,20,17,.55);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;backdrop-filter:blur(2px);}
+.modal{background:#fff;border-radius:16px;padding:30px;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;box-shadow:var(--shadow-lg);}
+.modal h3{margin-top:0;font-size:19px;}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:22px;}
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:var(--teh);color:#fff;padding:12px 22px;border-radius:30px;font-size:13.5px;font-weight:700;box-shadow:0 8px 26px rgba(0,0,0,.25);z-index:200;}
+.toast.err{background:var(--merah);}
+
+/* STUDENT PROFILE */
+.profile-banner{background:linear-gradient(120deg,var(--teh) 0%,var(--teh-3) 100%);border-radius:var(--radius);padding:26px 28px;color:#fff;position:relative;overflow:hidden;}
+.profile-banner::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle at 1px 1px, rgba(239,217,166,.12) 1.4px, transparent 1.5px);background-size:22px 22px;}
+.profile-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap;position:relative;z-index:1;}
+.profile-id{display:flex;align-items:center;gap:14px;}
+.pf-avatar{width:56px;height:56px;border-radius:50%;background:rgba(239,217,166,.18);border:1.5px solid rgba(239,217,166,.4);color:var(--emas-l);display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:700;font-size:20px;flex-shrink:0;}
+.profile-id .name{font-size:21px;color:#fff;}
+.profile-id .meta{color:rgba(255,255,255,.72);font-size:13px;margin-top:2px;}
+.tp-badge{background:rgba(239,217,166,.15);border:1px solid rgba(239,217,166,.35);border-radius:14px;padding:14px 22px;text-align:center;min-width:110px;}
+.tp-badge .num{font-family:'Fraunces',serif;font-size:32px;font-weight:700;color:var(--emas-l);}
+.tp-badge .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.85;color:#fff;}
+.two-col{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-top:18px;}
+@media(max-width:820px){.two-col{grid-template-columns:1fr;}}
+.ev-item{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--garis);align-items:center;}
+.ev-item:last-child{border-bottom:none;}
+.ev-thumb{width:50px;height:50px;border-radius:9px;object-fit:cover;background:var(--krim);border:1px solid var(--garis);flex-shrink:0;}
+.ev-thumb.pdf{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--teh);}
+.ev-info{flex:1;min-width:0;}
+.ev-info .t{font-weight:700;font-size:13.5px;}
+.ev-info .d{font-size:11.5px;color:var(--tulisan-lembut);margin-top:1px;}
+.rate-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px;}
+
+/* PRINT */
+#printArea{display:none;}
+@media print{
+  body *{visibility:hidden;}
+  #printArea, #printArea *{visibility:visible;}
+  #printArea{display:block;position:absolute;top:0;left:0;width:100%;padding:20px 30px;}
+  .no-print{display:none !important;}
+}
+.pr-header{display:flex;justify-content:space-between;border-bottom:3px solid #0E4C42;padding-bottom:10px;margin-bottom:16px;}
+.pr-header h1{margin:0;font-size:20px;}
+.pr-table{width:100%;border-collapse:collapse;margin-bottom:14px;}
+.pr-table th,.pr-table td{border:1px solid #ccc;padding:6px 8px;font-size:12px;text-align:left;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="printArea"></div>
+
+<script>
+/* ============ STORAGE HELPERS (via Google Apps Script + Google Sheets) ============ */
+const HARDCODED_API_URL = 'https://script.google.com/macros/s/AKfycbxpgN7f49vUE45AepyqZOWJinETbn7ucz052UtoM1xzVcSabpd1oF8yX-q73DEniT5H/exec';
+let API_URL = localStorage.getItem('pbd_api_url') || HARDCODED_API_URL;
+
+async function apiCall(payload){
+  if(!API_URL){ toast('Sambungan Google Sheets belum ditetapkan.', true); return null; }
+  try{
+    const res = await fetch(API_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify(payload)
+    });
+    const json = await res.json();
+    if(!json.ok){ toast('Ralat pelayan: '+(json.error||'tidak diketahui'), true); return null; }
+    return json.data;
+  }catch(e){
+    toast('Ralat menyimpan data: gagal hubungi Google Sheets.', true);
+    return null;
+  }
+}
+async function sGet(key){
+  const raw = await apiCall({action:'get', key});
+  if(raw===null || raw===undefined) return null;
+  try{ return JSON.parse(raw); }catch(e){ return null; }
+}
+async function sSet(key, value){
+  const r = await apiCall({action:'set', key, value: JSON.stringify(value)});
+  return r===null ? null : true;
+}
+async function uploadFileToDrive(filename, mimeType, base64){
+  return await apiCall({action:'uploadFile', filename, mimeType, base64});
+}
+function initials(name){
+  return (name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+}
+
+/* ============ APP STATE ============ */
+let DB = { meta:null, students:[], evidenceAll:{}, notesAll:{}, overridesAll:{} };
+let SESSION = null;
+let VIEW = { page:'login', tab:'guru', classFilter:'ALL', studentId:null };
+
+const DEFAULT_CLASSES = ['Tahun 3A','Tahun 3B','Tahun 3E','Tahun 4A','Tahun 4C','Tahun 4D','Tahun 6B','Tahun 6C'];
+const DEFAULT_TOPICS = [
+ "Konsep Nama Allah Al-Alim & Al-Hakim","Konsep Bersuci Dalam Islam","Wahyu Teragung","Adab Tidur",
+ "Solat Yang Sempurna","Hadis Yang Muda Dikasihi Yang Tua Dihormati","Adab Menuntut Ilmu",
+ "Beriman Kepada Kitab","Konsep Sunat Ab'ad & Haiat","Nabi Muhammad & Masyarakat Mekkah",
+ "Konsep Bersyukur","Sunnah Rasulullah"
+];
+const TP_DESC = {
+ 1:"Tahu", 2:"Tahu dan Faham", 3:"Tahu, Faham dan Boleh Buat",
+ 4:"Tahu, Faham dan Buat dengan Baik", 5:"Tahu, Faham dan Buat dengan Beradab",
+ 6:"Tahu, Faham dan Buat dengan Beradab Mithali (Contoh Terpuji)"
+};
+
+/* ============ SETUP SCREEN (Apps Script URL) ============ */
+function renderSetup(prefillErr){
+  const el = document.getElementById('app');
+  el.innerHTML = `
+  <div id="loginView">
+    <div class="login-box" style="width:440px;">
+      <div class="login-mark">🔗</div>
+      <h1>Sambung ke Google Sheets</h1>
+      <p class="sub">Tampal URL Web App Apps Script (lihat panduan yang diberikan) supaya semua data eviden PBD boleh disimpan &amp; dikongsi antara guru.</p>
+      <div class="field"><label>URL Web App Apps Script</label><input id="apiUrlInput" placeholder="https://script.google.com/macros/s/xxxxx/exec"></div>
+      <button class="btn" style="width:100%" id="apiUrlBtn">Sambung &amp; Teruskan</button>
+      <div class="login-err" id="apiUrlErr">${prefillErr||''}</div>
+      <div class="login-hint">URL ini disimpan pada peranti ini sahaja (localStorage pelayar). Setiap peranti/guru perlu tampal URL yang sama sekali sahaja.</div>
+    </div>
+  </div>`;
+  document.getElementById('apiUrlBtn').onclick=async ()=>{
+    const v = document.getElementById('apiUrlInput').value.trim();
+    if(!v.startsWith('https://script.google.com/')){ document.getElementById('apiUrlErr').textContent='URL tidak sah. Pastikan ia bermula dengan https://script.google.com/'; return; }
+    API_URL = v; localStorage.setItem('pbd_api_url', v);
+    document.getElementById('apiUrlErr').textContent='Menguji sambungan...';
+    const test = await apiCall({action:'get', key:'meta'});
+    if(test===null){ document.getElementById('apiUrlErr').textContent='Gagal sambung. Semak semula URL & tetapan deployment (Who has access: Anyone).'; return; }
+    boot();
+  };
+}
+
+/* ============ INIT / SEED ============ */
+async function boot(){
+  if(!API_URL){ renderSetup(); return; }
+  const [meta0, students0, evidenceAll0, notesAll0, overridesAll0] = await Promise.all([
+    sGet('meta'), sGet('students'), sGet('evidenceAll'), sGet('notesAll'), sGet('overridesAll')
+  ]);
+  let meta = meta0;
+  if(!meta){
+    meta = {
+      users:[{username:'admin', password:'admin123', role:'admin', name:'Pentadbir Sistem'}],
+      classes:[...DEFAULT_CLASSES],
+      topics:[...DEFAULT_TOPICS]
+    };
+    await sSet('meta', meta);
+  }
+  DB.meta = meta;
+  DB.students = students0 || [];
+  DB.evidenceAll = evidenceAll0 || {};
+  DB.notesAll = notesAll0 || {};
+  DB.overridesAll = overridesAll0 || {};
+  renderLogin();
+}
+
+function toast(msg, isErr=false){
+  const t = document.createElement('div');
+  t.className = 'toast'+(isErr?' err':'');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 2600);
+}
+
+/* ============ LOGIN ============ */
+function renderLogin(){
+  VIEW.page='login';
+  const el = document.getElementById('app');
+  el.innerHTML = `
+  <div id="loginView">
+    <div class="login-box">
+      <div class="login-mark">ﷺ</div>
+      <h1>Eviden PBD</h1>
+      <p class="sub">Panitia Pendidikan Islam &middot; Sistem Pengurusan Eviden &amp; Tahap Penguasaan</p>
+      <div class="role-toggle">
+        <button id="rtGuru" class="active">Guru</button>
+        <button id="rtAdmin">Admin</button>
+      </div>
+      <div class="field"><label>Nama Pengguna</label><input id="liUser" placeholder="cth: cikguain"></div>
+      <div class="field"><label>Kata Laluan</label><input id="liPass" type="password" placeholder="••••••••"></div>
+      <button class="btn" style="width:100%" id="liBtn">Log Masuk</button>
+      <div class="login-err" id="liErr"></div>
+      <div class="login-hint">Akaun admin pertama: <b>admin</b> / <b>admin123</b>. Guru perlu ditambah oleh Admin dahulu di panel Urus Guru.</div>
+      <div style="text-align:center;margin-top:14px;"><a href="#" id="reconfigLink" style="font-size:11.5px;color:var(--tulisan-lembut);">Tukar sambungan Google Sheets</a></div>
+    </div>
+  </div>`;
+  document.getElementById('reconfigLink').onclick=(e)=>{ e.preventDefault(); renderSetup(); };
+  let role='guru';
+  document.getElementById('rtGuru').onclick=()=>{role='guru';document.getElementById('rtGuru').classList.add('active');document.getElementById('rtAdmin').classList.remove('active');};
+  document.getElementById('rtAdmin').onclick=()=>{role='admin';document.getElementById('rtAdmin').classList.add('active');document.getElementById('rtGuru').classList.remove('active');};
+  document.getElementById('liBtn').onclick=async ()=>{
+    const u = document.getElementById('liUser').value.trim();
+    const p = document.getElementById('liPass').value;
+    const found = DB.meta.users.find(x=>x.username===u && x.password===p && x.role===role);
+    if(!found){ document.getElementById('liErr').textContent='Nama pengguna, kata laluan, atau peranan tidak sepadan.'; return; }
+    SESSION = found;
+    if(role==='admin') renderAdmin(); else renderGuru();
+  };
+  document.getElementById('liPass').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('liBtn').click(); });
+}
+
+function logout(){ SESSION=null; renderLogin(); }
+
+/* ============ APP SHELL (SIDEBAR) ============ */
+function appShell(activeKey, innerHTML){
+  const isAdmin = SESSION.role==='admin';
+  const navItems = isAdmin ? [
+    {key:'guru', label:'Urus Guru', icon:'👤'},
+    {key:'murid', label:'Urus Murid', icon:'🎓'},
+    {key:'kelas', label:'Kelas &amp; Tajuk', icon:'📚'}
+  ] : [
+    {key:'dash', label:'Dashboard', icon:'🏠'},
+    {key:'murid', label:'Urus Murid', icon:'🎓'}
+  ];
+  return `
+  <div class="shell">
+    <aside class="sidebar no-print">
+      <div class="sb-brand"><span class="sb-mark">ﷺ</span><div><div class="sb-title">Eviden PBD</div><div class="sb-sub">Pend. Islam</div></div></div>
+      <nav class="sb-nav">
+        ${navItems.map(n=>`<button class="sb-item ${activeKey===n.key?'active':''}" data-k="${n.key}"><span>${n.icon}</span>${n.label}</button>`).join('')}
+      </nav>
+      <div class="sb-foot">
+        <div class="sb-user"><div class="sb-avatar">${initials(SESSION.name)}</div><div><div class="sb-uname">${SESSION.name}</div><div class="sb-urole">${isAdmin?'Admin':'Guru'}</div></div></div>
+        <button class="btn ghost sb-logout" onclick="logout()">Log Keluar</button>
+      </div>
+    </aside>
+    <main class="main-area"><div class="wrap">${innerHTML}</div></main>
+  </div>`;
+}
+function wireShellNav(handler){
+  document.querySelectorAll('.sb-item').forEach(b=>{
+    b.onclick=()=>handler(b.dataset.k);
+  });
+}
+
+/* ============ TP CALCULATION ============ */
+function calcTP(evList){
+  if(!evList || evList.length===0) return 1;
+  const p1 = evList.filter(e=>e.penggal==='1');
+  const p2 = evList.filter(e=>e.penggal==='2');
+  const avgRating = evList.reduce((s,e)=>s+Number(e.rating||1),0)/evList.length;
+  const consistency = (p1.length>0 && p2.length>0) ? 1 : (p1.length>0||p2.length>0 ? 0.45 : 0);
+  const countScore = Math.min(evList.length,6)/6;
+  const raw = (avgRating/3)*0.5 + consistency*0.3 + countScore*0.2;
+  return Math.min(6, Math.max(1, Math.round(raw*6)));
+}
+function tpOf(student){
+  const ov = DB.overridesAll[student.id];
+  if(ov!=null) return ov;
+  return calcTP(DB.evidenceAll[student.id]||[]);
+}
+
+/* ============ ADMIN VIEW ============ */
+async function renderAdmin(){
+  VIEW.page='admin';
+  if(!VIEW.tab || !['guru','murid','kelas'].includes(VIEW.tab)) VIEW.tab='guru';
+  if(VIEW.tab==='murid'){ await paintMurid(); return; }
+  await paintAdmin();
+}
+async function paintAdmin(){
+  const el = document.getElementById('app');
+  let body='';
+  if(VIEW.tab==='guru') body = adminGuruHTML();
+  if(VIEW.tab==='kelas') body = adminKelasHTML();
+  const heading = VIEW.tab==='guru'?'Urus Guru':'Kelas &amp; Tajuk';
+  const content = `
+    <div class="page-head"><span class="eyebrow">Panel Pentadbir</span><h1>${heading}</h1></div>
+    ${body}`;
+  el.innerHTML = appShell(VIEW.tab, content);
+  wireShellNav(k=>{ VIEW.tab=k; if(k==='murid'){ paintMurid(); } else { paintAdmin(); } });
+}
+
+/* --- Shared: Murid management (Admin + Guru) --- */
+async function paintMurid(){
+  VIEW.tab='murid';
+  const el = document.getElementById('app');
+  const content = `
+    <div class="page-head"><span class="eyebrow">${SESSION.role==='admin'?'Panel Pentadbir':'Dashboard Guru'}</span><h1>Urus Murid</h1></div>
+    ${adminMuridHTML()}`;
+  el.innerHTML = appShell('murid', content);
+  wireShellNav(k=>{
+    if(SESSION.role==='admin'){ VIEW.tab=k; if(k==='murid') paintMurid(); else paintAdmin(); }
+    else { if(k==='dash') paintGuru(); else paintMurid(); }
+  });
+  const f = document.getElementById('muridClassFilter');
+  if(f) f.onchange=()=>{VIEW.classFilter=f.value; paintMurid();};
+}
+
+function adminGuruHTML(){
+  const rows = DB.meta.users.map((u,i)=>`
+    <tr><td><div class="trow"><div class="mini-avatar">${initials(u.name)}</div><b>${u.name}</b></div></td><td>${u.username}</td><td>${u.role==='admin'?'Admin':'Guru'}</td>
+    <td class="row-actions">
+      <button class="btn ghost" onclick="editUser(${i})">Edit</button>
+      ${u.username!=='admin' ? `<button class="btn danger" onclick="deleteUser(${i})">Padam</button>`:''}
+    </td></tr>`).join('');
+  return `
+  <div class="card">
+    <div class="section-head" style="margin-top:0;"><h2>Senarai Akaun (${DB.meta.users.length})</h2>
+      <button class="btn gold" onclick="openUserModal()">+ Tambah Guru</button></div>
+    <table><thead><tr><th>Nama</th><th>Nama Pengguna</th><th>Peranan</th><th></th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="4"><div class="empty"><div class="em-ic">👤</div>Tiada akaun lagi.</div></td></tr>'}</tbody></table>
+  </div>`;
+}
+
+function adminMuridHTML(){
+  const cls = VIEW.classFilter;
+  const list = DB.students.filter(s=> cls==='ALL' || s.class===cls);
+  const rows = list.map((s)=>{
+    const idx = DB.students.indexOf(s);
+    return `<tr><td><div class="trow"><div class="mini-avatar">${initials(s.name)}</div><b>${s.name}</b></div></td><td>${s.class}</td>
+    <td class="row-actions"><button class="btn ghost" onclick="editStudent(${idx})">Edit</button>
+    <button class="btn danger" onclick="deleteStudent(${idx})">Padam</button></td></tr>`;
+  }).join('');
+  const opts = ['ALL',...DB.meta.classes].map(c=>`<option value="${c}" ${c===cls?'selected':''}>${c==='ALL'?'Semua Kelas':c}</option>`).join('');
+  return `
+  <div class="card">
+    <div class="section-head" style="margin-top:0;"><h2>Senarai Murid (${list.length})</h2>
+      <button class="btn gold" onclick="openStudentModal()">+ Tambah Murid</button></div>
+    <div class="toolbar"><select id="muridClassFilter">${opts}</select></div>
+    <table><thead><tr><th>Nama</th><th>Kelas</th><th></th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="3"><div class="empty"><div class="em-ic">🎓</div>Tiada murid dalam kelas ini.</div></td></tr>'}</tbody></table>
+  </div>`;
+}
+
+function adminKelasHTML(){
+  const clsRows = DB.meta.classes.map((c,i)=>`<span class="pill tp5" style="margin:4px 6px 0 0;display:inline-flex;align-items:center;gap:6px;">${c} <span style="cursor:pointer;color:var(--merah);font-weight:900;" onclick="removeClass(${i})">&times;</span></span>`).join('');
+  const topRows = DB.meta.topics.map((t,i)=>`<div class="ev-item" style="border:none;padding:7px 0;"><div class="ev-info"><span>${t}</span></div><button class="btn danger" style="padding:4px 10px;font-size:12px;" onclick="removeTopic(${i})">Padam</button></div>`).join('');
+  return `
+  <div class="two-col">
+    <div class="card">
+      <h2 style="margin-top:0;">Tajuk Eviden (${DB.meta.topics.length})</h2>
+      <div class="toolbar"><input id="newTopic" placeholder="Nama tajuk baharu"><button class="btn gold" onclick="addTopic()">Tambah</button></div>
+      <div style="margin-top:8px;">${topRows}</div>
+    </div>
+    <div class="card">
+      <h2 style="margin-top:0;">Kelas (${DB.meta.classes.length})</h2>
+      <div class="toolbar"><input id="newClass" placeholder="cth: Tahun 5A"><button class="btn gold" onclick="addClass()">Tambah</button></div>
+      <div style="margin-top:10px;">${clsRows}</div>
+    </div>
+  </div>`;
+}
+
+/* --- Admin: user CRUD --- */
+function openUserModal(editIdx=null){
+  const u = editIdx!=null ? DB.meta.users[editIdx] : {name:'',username:'',password:'',role:'guru'};
+  showModal(`
+    <h3>${editIdx!=null?'Edit Akaun':'Tambah Akaun Guru'}</h3>
+    <div class="field"><label>Nama Penuh</label><input id="mUName" value="${u.name}"></div>
+    <div class="field"><label>Nama Pengguna</label><input id="mUUser" value="${u.username}" ${editIdx!=null&&u.username==='admin'?'disabled':''}></div>
+    <div class="field"><label>Kata Laluan</label><input id="mUPass" value="${u.password}"></div>
+    <div class="field"><label>Peranan</label><select id="mURole"><option value="guru" ${u.role==='guru'?'selected':''}>Guru</option><option value="admin" ${u.role==='admin'?'selected':''}>Admin</option></select></div>
+    <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Batal</button>
+    <button class="btn" onclick="saveUser(${editIdx})">Simpan</button></div>
+  `);
+}
+function editUser(i){ openUserModal(i); }
+async function saveUser(editIdx){
+  const name=document.getElementById('mUName').value.trim();
+  const username=document.getElementById('mUUser').value.trim();
+  const password=document.getElementById('mUPass').value;
+  const role=document.getElementById('mURole').value;
+  if(!name||!username||!password){ toast('Sila lengkapkan semua ruangan.', true); return; }
+  const dup = DB.meta.users.find((u,i)=>u.username===username && i!==editIdx);
+  if(dup){ toast('Nama pengguna telah digunakan.', true); return; }
+  if(editIdx!=null){ DB.meta.users[editIdx] = {name,username,password,role}; }
+  else { DB.meta.users.push({name,username,password,role}); }
+  const ok = await sSet('meta', DB.meta);
+  if(ok===null){ toast('Gagal simpan ke Google Sheets. Cuba lagi.', true); if(editIdx==null) DB.meta.users.pop(); return; }
+  closeModal(); toast('Akaun disimpan.'); paintAdmin();
+}
+async function deleteUser(i){
+  if(!confirm('Padam akaun ini?')) return;
+  const removed = DB.meta.users.splice(i,1);
+  const ok = await sSet('meta', DB.meta);
+  if(ok===null){ DB.meta.users.splice(i,0,removed[0]); toast('Gagal padam. Cuba lagi.', true); return; }
+  toast('Akaun dipadam.'); paintAdmin();
+}
+
+/* --- Admin: student CRUD --- */
+function openStudentModal(editIdx=null){
+  const s = editIdx!=null ? DB.students[editIdx] : {name:'',class:DB.meta.classes[0]||''};
+  const opts = DB.meta.classes.map(c=>`<option value="${c}" ${c===s.class?'selected':''}>${c}</option>`).join('');
+  showModal(`
+    <h3>${editIdx!=null?'Edit Murid':'Tambah Murid'}</h3>
+    <div class="field"><label>Nama Murid</label><input id="mSName" value="${s.name}"></div>
+    <div class="field"><label>Kelas</label><select id="mSClass">${opts}</select></div>
+    <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Batal</button>
+    <button class="btn" onclick="saveStudent(${editIdx})">Simpan</button></div>
+  `);
+}
+function editStudent(i){ openStudentModal(i); }
+async function saveStudent(editIdx){
+  const name=document.getElementById('mSName').value.trim();
+  const cls=document.getElementById('mSClass').value;
+  if(!name){ toast('Sila masukkan nama murid.', true); return; }
+  let added=null;
+  if(editIdx!=null){ DB.students[editIdx].name=name; DB.students[editIdx].class=cls; }
+  else { added = {id:'s'+Date.now()+Math.floor(Math.random()*999), name, class:cls}; DB.students.push(added); }
+  const ok = await sSet('students', DB.students);
+  if(ok===null){ toast('Gagal simpan ke Google Sheets. Cuba lagi.', true); if(added) DB.students.pop(); return; }
+  closeModal(); toast('Murid disimpan.'); paintMurid();
+}
+async function deleteStudent(i){
+  if(!confirm('Padam murid ini? Eviden berkaitan turut dipadam.')) return;
+  const removed = DB.students.splice(i,1)[0];
+  const ok = await sSet('students', DB.students);
+  if(ok===null){ DB.students.splice(i,0,removed); toast('Gagal padam. Cuba lagi.', true); return; }
+  delete DB.evidenceAll[removed.id]; delete DB.notesAll[removed.id]; delete DB.overridesAll[removed.id];
+  await Promise.all([sSet('evidenceAll', DB.evidenceAll), sSet('notesAll', DB.notesAll), sSet('overridesAll', DB.overridesAll)]);
+  toast('Murid dipadam.'); paintMurid();
+}
+
+/* --- Admin: class/topic --- */
+async function addTopic(){
+  const v = document.getElementById('newTopic').value.trim();
+  if(!v) return;
+  DB.meta.topics.push(v);
+  const ok = await sSet('meta', DB.meta);
+  if(ok===null){ DB.meta.topics.pop(); toast('Gagal simpan. Cuba lagi.', true); return; }
+  paintAdmin();
+}
+async function removeTopic(i){
+  const removed = DB.meta.topics.splice(i,1)[0];
+  const ok = await sSet('meta', DB.meta);
+  if(ok===null){ DB.meta.topics.splice(i,0,removed); toast('Gagal padam. Cuba lagi.', true); return; }
+  paintAdmin();
+}
+async function addClass(){
+  const v = document.getElementById('newClass').value.trim();
+  if(!v) return;
+  DB.meta.classes.push(v);
+  const ok = await sSet('meta', DB.meta);
+  if(ok===null){ DB.meta.classes.pop(); toast('Gagal simpan. Cuba lagi.', true); return; }
+  paintAdmin();
+}
+async function removeClass(i){
+  const removed = DB.meta.classes.splice(i,1)[0];
+  const ok = await sSet('meta', DB.meta);
+  if(ok===null){ DB.meta.classes.splice(i,0,removed); toast('Gagal padam. Cuba lagi.', true); return; }
+  paintAdmin();
+}
+
+/* ============ GURU DASHBOARD ============ */
+async function renderGuru(){
+  VIEW.page='guru'; VIEW.tab='dash';
+  await paintGuru();
+}
+async function paintGuru(){
+  VIEW.page='guru'; VIEW.tab='dash';
+  const el = document.getElementById('app');
+  const cls = VIEW.classFilter;
+  DB.students.forEach(s=>{
+    s._evidence = DB.evidenceAll[s.id] || [];
+    s._override = (DB.overridesAll[s.id]!=null) ? DB.overridesAll[s.id] : null;
+  });
+  const tpCounts=[0,0,0,0,0,0];
+  DB.students.forEach(s=> tpCounts[tpOf(s)-1]++);
+  const list = DB.students.filter(s=> cls==='ALL' || s.class===cls);
+  const opts = ['ALL',...DB.meta.classes].map(c=>`<option value="${c}" ${c===cls?'selected':''}>${c==='ALL'?'Semua Kelas':c}</option>`).join('');
+  const cards = list.map(s=>{
+    const tp = tpOf(s);
+    return `<div class="student-card" onclick="openStudent('${s.id}')">
+      <div class="sc-top"><div class="sc-avatar">${initials(s.name)}</div>
+        <div><div class="sc-name">${s.name}</div><div class="sc-class">${s.class}</div></div></div>
+      <div class="sc-bottom"><span class="sc-ev">${s._evidence.length} eviden</span><span class="pill tp${tp}">TP${tp}</span></div>
+    </div>`;
+  }).join('');
+  const avgTP = (tpCounts.reduce((s,c,i)=>s+c*(i+1),0)/Math.max(1,DB.students.length)).toFixed(1);
+
+  const content = `
+    <div class="page-head"><span class="eyebrow">Dashboard Guru</span><h1>Selamat Kembali, ${SESSION.name.split(' ')[0]}</h1></div>
+    <div class="grid-cards">
+      <div class="stat-card"><span class="ic">🎓</span><div class="n">${DB.students.length}</div><div class="l">Jumlah Murid</div></div>
+      <div class="stat-card"><span class="ic">🏫</span><div class="n">${DB.meta.classes.length}</div><div class="l">Kelas</div></div>
+      <div class="stat-card"><span class="ic">📎</span><div class="n">${Object.values(DB.evidenceAll).reduce((a,e)=>a+e.length,0)}</div><div class="l">Jumlah Eviden</div></div>
+      <div class="stat-card"><span class="ic">⭐</span><div class="n">${avgTP}</div><div class="l">Purata TP Keseluruhan</div></div>
+    </div>
+    <div class="section-head"><h2>Taburan TP Keseluruhan</h2></div>
+    <div class="card"><canvas id="tpDistChart" height="85"></canvas></div>
+    <div class="section-head"><h2>Senarai Murid</h2></div>
+    <div class="toolbar"><select id="guruClassFilter">${opts}</select></div>
+    <div class="student-grid">${cards || '<div class="empty" style="grid-column:1/-1;"><div class="em-ic">🎓</div>Tiada murid dalam kelas ini.</div>'}</div>
+  `;
+  el.innerHTML = appShell('dash', content);
+  wireShellNav(k=>{ if(k==='murid') paintMurid(); });
+  document.getElementById('guruClassFilter').onchange=(e)=>{VIEW.classFilter=e.target.value; paintGuru();};
+  new Chart(document.getElementById('tpDistChart'), {
+    type:'bar',
+    data:{ labels:['TP1','TP2','TP3','TP4','TP5','TP6'],
+      datasets:[{label:'Bilangan Murid', data:tpCounts, backgroundColor:['#B5493D','#C97362','#D6A94C','#C79A4B','#5C9B6E','#3E7A4E'], borderRadius:8, maxBarThickness:48}]},
+    options:{plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true, ticks:{stepSize:1}}}}
+  });
+}
+
+/* ============ STUDENT PROFILE ============ */
+async function openStudent(id){
+  VIEW.studentId=id; VIEW.page='profile';
+  await paintProfile();
+}
+async function paintProfile(){
+  const el = document.getElementById('app');
+  const s = DB.students.find(x=>x.id===VIEW.studentId);
+  if(!s){ paintGuru(); return; }
+  s._evidence = DB.evidenceAll[s.id] || [];
+  s._override = (DB.overridesAll[s.id]!=null) ? DB.overridesAll[s.id] : null;
+  const notes = DB.notesAll[s.id] || {p:'',k:'',c:''};
+  const autoTP = calcTP(s._evidence);
+  const tp = tpOf(s);
+  const evRows = s._evidence.slice().sort((a,b)=> a.date<b.date?1:-1).map(ev=>{
+    const dotColor = ev.rating==3?'var(--hijau-ok)': ev.rating==2?'var(--emas)':'var(--merah)';
+    const thumb = ev.fileType && ev.fileType.startsWith('image') ?
+      `<img class="ev-thumb" src="${ev.fileUrl}" onerror="this.style.opacity=0.3">` :
+      `<div class="ev-thumb pdf">PDF</div>`;
+    return `<div class="ev-item">
+      ${thumb}
+      <div class="ev-info">
+        <div class="t">${ev.topic}</div>
+        <div class="d"><span class="rate-dot" style="background:${dotColor}"></span>Penggal ${ev.penggal} &middot; ${ev.date} &middot; ${ratingLabel(ev.rating)}</div>
+      </div>
+      <div class="row-actions">
+        <a class="btn ghost" style="padding:5px 10px;font-size:12px;" href="${ev.fileUrl}" target="_blank" rel="noopener">Lihat</a>
+        <button class="btn danger" style="padding:5px 10px;font-size:12px;" onclick="deleteEvidence('${ev.id}')">Padam</button>
+      </div>
+    </div>`;
+  }).join('') || '<div class="empty"><div class="em-ic">📎</div>Belum ada eviden dimuat naik.</div>';
+
+  const content = `
+    <div class="no-print"><button class="btn ghost" onclick="paintGuru()">&larr; Kembali ke Senarai</button></div>
+    <div class="profile-banner" style="margin-top:16px;">
+      <div class="profile-head">
+        <div class="profile-id">
+          <div class="pf-avatar">${initials(s.name)}</div>
+          <div><div class="name">${s.name}</div><div class="meta">${s.class} &middot; ${s._evidence.length} eviden direkodkan</div></div>
+        </div>
+        <div class="tp-badge"><div class="num">TP${tp}</div><div class="lbl">${s._override!=null?'Ditetapkan Guru':'Auto-Generate'}</div></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px;">
+      <div style="font-size:13px;color:var(--tulisan-lembut);">Deskriptor: <b style="color:var(--teh);">${TP_DESC[tp]}</b> ${s._override!=null?`(Auto: TP${autoTP})`:''}</div>
+      <div class="toolbar no-print">
+        <button class="btn gold" onclick="openEvidenceModal()">+ Upload Eviden</button>
+        <button class="btn ghost" onclick="openOverrideModal()">Override TP</button>
+        <button class="btn ghost" onclick="printReport()">🖨 Cetak Laporan</button>
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <h2 style="margin-top:0;">Senarai Eviden</h2>
+        <div>${evRows}</div>
+      </div>
+      <div class="card">
+        <h2 style="margin-top:0;">Taburan Penilaian</h2>
+        <canvas id="studTPChart" height="160"></canvas>
+        <h2>Catatan Guru</h2>
+        <div class="field"><label>Pemerhatian</label><textarea id="noteP" rows="2">${notes.p||''}</textarea></div>
+        <div class="field"><label>Komen Prestasi</label><textarea id="noteK" rows="2">${notes.k||''}</textarea></div>
+        <div class="field"><label>Cadangan</label><textarea id="noteC" rows="2">${notes.c||''}</textarea></div>
+        <button class="btn" onclick="saveNotes()">Simpan Catatan</button>
+      </div>
+    </div>
+  `;
+  el.innerHTML = appShell('dash', content);
+  wireShellNav(k=>{ if(k==='dash') paintGuru(); else if(k==='murid') paintMurid(); });
+  const p1=s._evidence.filter(e=>e.penggal==='1').length, p2=s._evidence.filter(e=>e.penggal==='2').length;
+  const rHigh=s._evidence.filter(e=>e.rating==3).length, rMid=s._evidence.filter(e=>e.rating==2).length, rLow=s._evidence.filter(e=>e.rating==1).length;
+  new Chart(document.getElementById('studTPChart'), {
+    type:'bar',
+    data:{labels:['Penggal 1','Penggal 2','Tinggi','Sederhana','Rendah'],
+      datasets:[{data:[p1,p2,rHigh,rMid,rLow], backgroundColor:['#146357','#0E4C42','#3E7A4E','#C79A4B','#B5493D'], borderRadius:8}]},
+    options:{plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}}
+  });
+}
+function ratingLabel(r){ return r==3?'Tinggi':r==2?'Sederhana':'Rendah'; }
+
+/* --- evidence CRUD --- */
+function openEvidenceModal(){
+  const topicOpts = DB.meta.topics.map(t=>`<option value="${t}">${t}</option>`).join('');
+  const today = new Date().toISOString().slice(0,10);
+  showModal(`
+    <h3>Upload Eviden</h3>
+    <div class="field"><label>Tajuk Eviden</label><select id="evTopic">${topicOpts}</select></div>
+    <div class="field"><label>Penggal</label><select id="evPenggal"><option value="1">Penggal 1</option><option value="2">Penggal 2</option></select></div>
+    <div class="field"><label>Tarikh</label><input type="date" id="evDate" value="${today}"></div>
+    <div class="field"><label>Tahap Eviden (Penilaian Guru)</label><select id="evRating"><option value="3">Tinggi</option><option value="2" selected>Sederhana</option><option value="1">Rendah</option></select></div>
+    <div class="field"><label>Fail (Gambar JPG/PNG atau PDF)</label><input type="file" id="evFile" accept="image/jpeg,image/png,application/pdf"></div>
+    <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Batal</button>
+    <button class="btn" id="evSaveBtn" onclick="saveEvidence()">Simpan Eviden</button></div>
+  `);
+}
+async function saveEvidence(){
+  const topic=document.getElementById('evTopic').value;
+  const penggal=document.getElementById('evPenggal').value;
+  const date=document.getElementById('evDate').value;
+  const rating=document.getElementById('evRating').value;
+  const fileInput=document.getElementById('evFile');
+  const saveBtn=document.getElementById('evSaveBtn');
+  if(!fileInput.files[0]){ toast('Sila pilih fail eviden.', true); return; }
+  const file = fileInput.files[0];
+  if(file.size > 8*1024*1024){ toast('Fail terlalu besar (had 8MB). Sila mampatkan.', true); return; }
+  if(saveBtn){ saveBtn.disabled=true; saveBtn.textContent='Memuat naik...'; }
+  const reader = new FileReader();
+  reader.onload = async ()=>{
+    const base64 = reader.result.split(',')[1];
+    const uploaded = await uploadFileToDrive(file.name, file.type, base64);
+    if(!uploaded || !uploaded.url){ if(saveBtn){saveBtn.disabled=false; saveBtn.textContent='Simpan Eviden';} toast('Gagal muat naik fail.', true); return; }
+    const s = DB.students.find(x=>x.id===VIEW.studentId);
+    const ev = {id:'e'+Date.now(), topic, penggal, date, rating, fileType:file.type, fileUrl:uploaded.url};
+    if(!DB.evidenceAll[s.id]) DB.evidenceAll[s.id] = [];
+    DB.evidenceAll[s.id].push(ev);
+    const ok = await sSet('evidenceAll', DB.evidenceAll);
+    if(ok===null){ DB.evidenceAll[s.id].pop(); if(saveBtn){saveBtn.disabled=false; saveBtn.textContent='Simpan Eviden';} toast('Gagal simpan ke Google Sheets.', true); return; }
+    closeModal(); toast('Eviden disimpan.'); paintProfile();
+  };
+  reader.readAsDataURL(file);
+}
+async function deleteEvidence(evId){
+  if(!confirm('Padam eviden ini?')) return;
+  const s = DB.students.find(x=>x.id===VIEW.studentId);
+  const before = DB.evidenceAll[s.id] || [];
+  DB.evidenceAll[s.id] = before.filter(e=>e.id!==evId);
+  const ok = await sSet('evidenceAll', DB.evidenceAll);
+  if(ok===null){ DB.evidenceAll[s.id] = before; toast('Gagal padam. Cuba lagi.', true); return; }
+  toast('Eviden dipadam.'); paintProfile();
+}
+
+/* --- TP override --- */
+function openOverrideModal(){
+  const s = DB.students.find(x=>x.id===VIEW.studentId);
+  const opts = [1,2,3,4,5,6].map(n=>`<option value="${n}" ${s._override===n?'selected':''}>TP${n} — ${TP_DESC[n]}</option>`).join('');
+  showModal(`
+    <h3>Override TP Muktamad</h3>
+    <p style="font-size:13px;color:var(--tulisan-lembut);">TP auto-generate: <b>TP${calcTP(s._evidence)}</b>. Guru boleh menetapkan keputusan akhir secara manual.</p>
+    <div class="field"><label>TP Muktamad</label><select id="ovVal"><option value="">-- Guna Auto-Generate --</option>${opts}</select></div>
+    <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Batal</button>
+    <button class="btn" onclick="saveOverride()">Simpan</button></div>
+  `);
+}
+async function saveOverride(){
+  const v = document.getElementById('ovVal').value;
+  const s = DB.students.find(x=>x.id===VIEW.studentId);
+  const prev = DB.overridesAll[s.id];
+  if(v===''){ delete DB.overridesAll[s.id]; } else { DB.overridesAll[s.id] = Number(v); }
+  const ok = await sSet('overridesAll', DB.overridesAll);
+  if(ok===null){ if(prev!=null) DB.overridesAll[s.id]=prev; toast('Gagal simpan. Cuba lagi.', true); return; }
+  closeModal(); toast('TP dikemas kini.'); paintProfile();
+}
+
+/* --- notes --- */
+async function saveNotes(){
+  const s = DB.students.find(x=>x.id===VIEW.studentId);
+  const prev = DB.notesAll[s.id];
+  const notes = {p:document.getElementById('noteP').value, k:document.getElementById('noteK').value, c:document.getElementById('noteC').value};
+  DB.notesAll[s.id] = notes;
+  const ok = await sSet('notesAll', DB.notesAll);
+  if(ok===null){ if(prev) DB.notesAll[s.id]=prev; else delete DB.notesAll[s.id]; toast('Gagal simpan. Cuba lagi.', true); return; }
+  toast('Catatan disimpan.');
+}
+
+/* --- print --- */
+function printReport(){
+  const s = DB.students.find(x=>x.id===VIEW.studentId);
+  const notes = DB.notesAll[s.id] || {p:'',k:'',c:''};
+  const tp = tpOf(s);
+  const p1 = s._evidence.filter(e=>e.penggal==='1');
+  const p2 = s._evidence.filter(e=>e.penggal==='2');
+  const evRow = e=>`<tr><td>${e.topic}</td><td>${e.date}</td><td>${ratingLabel(e.rating)}</td></tr>`;
+  document.getElementById('printArea').innerHTML = `
+    <div class="pr-header"><div><h1>Laporan PBD — Pendidikan Islam</h1><div style="font-size:12px;color:#555;">Dijana pada ${new Date().toLocaleDateString('ms-MY')}</div></div>
+    <div style="text-align:right;font-size:12px;"><b>${s.name}</b><br>${s.class}</div></div>
+    <table class="pr-table"><tr><th style="width:30%">Tahap Penguasaan (TP) Muktamad</th><td><b>TP${tp}</b> — ${TP_DESC[tp]}</td></tr></table>
+    <h3 style="font-size:14px;">Eviden Penggal 1 (${p1.length})</h3>
+    <table class="pr-table"><thead><tr><th>Tajuk</th><th>Tarikh</th><th>Tahap</th></tr></thead><tbody>${p1.map(evRow).join('')||'<tr><td colspan=3>Tiada</td></tr>'}</tbody></table>
+    <h3 style="font-size:14px;">Eviden Penggal 2 (${p2.length})</h3>
+    <table class="pr-table"><thead><tr><th>Tajuk</th><th>Tarikh</th><th>Tahap</th></tr></thead><tbody>${p2.map(evRow).join('')||'<tr><td colspan=3>Tiada</td></tr>'}</tbody></table>
+    <h3 style="font-size:14px;">Catatan Guru</h3>
+    <table class="pr-table">
+      <tr><th style="width:25%">Pemerhatian</th><td>${notes.p||'-'}</td></tr>
+      <tr><th>Komen Prestasi</th><td>${notes.k||'-'}</td></tr>
+      <tr><th>Cadangan</th><td>${notes.c||'-'}</td></tr>
+    </table>
+    <div style="margin-top:30px;font-size:12px;">Tandatangan Guru: ______________________</div>
+  `;
+  window.print();
+}
+
+/* ============ MODAL HELPERS ============ */
+function showModal(html){
+  const bg = document.createElement('div');
+  bg.className='modal-bg'; bg.id='modalBg';
+  bg.innerHTML = `<div class="modal">${html}</div>`;
+  bg.onclick=(e)=>{ if(e.target.id==='modalBg') closeModal(); };
+  document.body.appendChild(bg);
+}
+function closeModal(){ const m=document.getElementById('modalBg'); if(m) m.remove(); }
+
+boot();
+</script>
+</body>
+</html>

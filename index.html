@@ -415,6 +415,7 @@ function appShell(activeKey, innerHTML){
   ] : [
     {key:'dash', label:'Dashboard', icon:'🏠'},
     {key:'murid', label:'Murid', icon:'🎓'},
+    {key:'tajuk', label:'Tajuk', icon:'📚'},
     {key:'rujukan', label:'Rujukan TP', icon:'📖'}
   ];
   return `
@@ -463,6 +464,7 @@ async function renderAdmin(){
   VIEW.page='admin';
   if(!VIEW.tab || !['guru','murid','kelas','tajuk','rujukan','log'].includes(VIEW.tab)) VIEW.tab='guru';
   if(VIEW.tab==='murid'){ await paintMurid(); return; }
+  if(VIEW.tab==='tajuk'){ await paintTajuk(); return; }
   if(VIEW.tab==='rujukan'){ await paintRujukan(); return; }
   if(VIEW.tab==='log'){ await paintLog(); return; }
   await paintAdmin();
@@ -472,8 +474,7 @@ async function paintAdmin(){
   let body='';
   if(VIEW.tab==='guru') body = adminGuruHTML();
   if(VIEW.tab==='kelas') body = adminKelasOnlyHTML();
-  if(VIEW.tab==='tajuk') body = adminTajukOnlyHTML();
-  const heading = VIEW.tab==='guru'?'Urus Guru':VIEW.tab==='kelas'?'Kelas':'Tajuk Eviden';
+  const heading = VIEW.tab==='guru'?'Urus Guru':'Kelas';
   const content = `
     <div class="page-head"><span class="eyebrow">Panel Pentadbir</span><h1>${heading}</h1></div>
     ${body}`;
@@ -482,18 +483,30 @@ async function paintAdmin(){
 }
 
 /* --- Shared: Murid management (Admin + Guru) --- */
-/* --- Shared nav handler covering Dashboard/Murid/Rujukan/Admin tabs --- */
+/* --- Shared nav handler covering Dashboard/Murid/Tajuk/Rujukan/Admin tabs --- */
 function navigateShared(k){
   if(SESSION.role==='admin'){
     if(k==='murid') paintMurid();
+    else if(k==='tajuk') paintTajuk();
     else if(k==='rujukan') paintRujukan();
     else if(k==='log') paintLog();
     else { VIEW.tab=k; paintAdmin(); }
   } else {
     if(k==='dash') paintGuru();
     else if(k==='murid') paintMurid();
+    else if(k==='tajuk') paintTajuk();
     else paintRujukan();
   }
+}
+
+async function paintTajuk(){
+  VIEW.tab='tajuk';
+  const el = document.getElementById('app');
+  const content = `
+    <div class="page-head"><span class="eyebrow">${SESSION.role==='admin'?'Panel Pentadbir':'Dashboard Guru'}</span><h1>Tajuk Eviden</h1></div>
+    ${adminTajukOnlyHTML()}`;
+  el.innerHTML = appShell('tajuk', content);
+  wireShellNav(navigateShared);
 }
 
 async function paintMurid(){
@@ -710,13 +723,13 @@ async function addTopic(year){
   DB.meta.topics[year].push(v);
   const ok = await sSet('meta', DB.meta);
   if(ok===null){ DB.meta.topics[year].pop(); toast('Gagal simpan. Cuba lagi.', true); return; }
-  logActivity('Tambah Tajuk', 'Tahun '+year+': '+v); paintAdmin();
+  logActivity('Tambah Tajuk', 'Tahun '+year+': '+v); paintTajuk();
 }
 async function removeTopic(year, i){
   const removed = DB.meta.topics[year].splice(i,1)[0];
   const ok = await sSet('meta', DB.meta);
   if(ok===null){ DB.meta.topics[year].splice(i,0,removed); toast('Gagal padam. Cuba lagi.', true); return; }
-  logActivity('Padam Tajuk', 'Tahun '+year+': '+removed); paintAdmin();
+  logActivity('Padam Tajuk', 'Tahun '+year+': '+removed); paintTajuk();
 }
 async function addClass(){
   const v = document.getElementById('newClass').value.trim();
@@ -922,7 +935,7 @@ function openEvidenceModal(){
   if(topics.length===0){
     showModal(`
       <h3>Upload Eviden</h3>
-      <p style="font-size:13px;color:var(--tulisan-lembut);">Tiada tajuk eviden untuk <b>Tahun ${year}</b> lagi. Sila minta Admin tambah tajuk di panel <b>Kelas &amp; Tajuk</b> dahulu.</p>
+      <p style="font-size:13px;color:var(--tulisan-lembut);">Tiada tajuk eviden untuk <b>Tahun ${year}</b> lagi. Sila tambah dahulu di tab <b>Tajuk</b>.</p>
       <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Tutup</button></div>
     `);
     return;

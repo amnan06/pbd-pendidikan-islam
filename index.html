@@ -77,13 +77,16 @@ label{font-size:12px;font-weight:700;color:var(--tulisan-lembut);display:block;m
 .main-area{flex:1;min-width:0;}
 .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 60px;}
 @media(max-width:640px){
-  .topnav-inner{padding:10px 14px;gap:10px;}
+  .topnav-inner{padding:10px 12px;gap:8px;}
   .tn-sub{display:none;}
-  .tn-title{font-size:14.5px;}
-  .tn-logo{width:34px;height:34px;font-size:16px;}
+  .tn-title{display:none;}
+  .tn-logo{width:32px;height:32px;font-size:15px;}
   .tn-user{display:none;}
   .wrap{padding:16px 14px 50px;}
-  .tn-item{padding:8px 10px;font-size:12.5px;}
+  .tn-item{padding:8px 9px;font-size:12px;gap:4px;}
+  .tn-item span{font-size:13px;}
+  .tn-logout{padding:7px 10px;font-size:11.5px;}
+  .tn-tabs{gap:2px;}
 }
 
 /* HEADER / SCHOOL BANNER */
@@ -353,13 +356,13 @@ function logout(){ SESSION=null; renderLogin(); }
 function appShell(activeKey, innerHTML){
   const isAdmin = SESSION.role==='admin';
   const navItems = isAdmin ? [
-    {key:'guru', label:'Urus Guru', icon:'👤'},
-    {key:'murid', label:'Urus Murid', icon:'🎓'},
+    {key:'guru', label:'Guru', icon:'👤'},
+    {key:'murid', label:'Murid', icon:'🎓'},
     {key:'kelas', label:'Kelas', icon:'🏫'},
     {key:'tajuk', label:'Tajuk', icon:'📚'}
   ] : [
     {key:'dash', label:'Dashboard', icon:'🏠'},
-    {key:'murid', label:'Urus Murid', icon:'🎓'}
+    {key:'murid', label:'Murid', icon:'🎓'}
   ];
   return `
   <header class="topnav no-print">

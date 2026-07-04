@@ -179,7 +179,8 @@ tr:hover td{background:#FBF8EF;}
 
 <script>
 /* ============ STORAGE HELPERS (via Google Apps Script + Google Sheets) ============ */
-let API_URL = localStorage.getItem('pbd_api_url') || '';
+const HARDCODED_API_URL = 'https://script.google.com/macros/s/AKfycbxpgN7f49vUE45AepyqZOWJinETbn7ucz052UtoM1xzVcSabpd1oF8yX-q73DEniT5H/exec';
+let API_URL = localStorage.getItem('pbd_api_url') || HARDCODED_API_URL;
 
 async function apiCall(payload){
   if(!API_URL){ toast('Sambungan Google Sheets belum ditetapkan.', true); return null; }

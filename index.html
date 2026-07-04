@@ -238,7 +238,7 @@ function initials(name){
 }
 
 /* ============ APP STATE ============ */
-let DB = { meta:null, students:[], evidenceAll:{}, notesAll:{}, overridesAll:{} };
+let DB = { meta:null, students:[], evidenceAll:{}, notesAll:{}, overridesAll:{}, verifiedAll:{}, anecdotesAll:{}, activityLog:[] };
 let SESSION = null;
 let VIEW = { page:'login', tab:'guru', classFilter:'ALL', studentId:null };
 
@@ -250,7 +250,12 @@ const DEFAULT_TOPICS_BY_YEAR = {
   "Beriman Kepada Kitab","Konsep Sunat Ab'ad & Haiat","Nabi Muhammad & Masyarakat Mekkah",
   "Konsep Bersyukur","Sunnah Rasulullah"
  ],
- "4": [],
+ "4": [
+  "Pengertian Nama Allah Al-Azim & Al-Hamid","Mari Bersuci","Perjanjian Aqabah Pertama & Kedua",
+  "Tutuplah Auratmu","Pengertian Nabi & Rasul","Azan & Iqamah","Sifat Fatonah Nabi Muhammad",
+  "Adab Beriadah","Hadis Memuliakan Tetamu","Kufur","Puasa Ramadan","Dakwah",
+  "Adab Berjiran","Nifak","Adab Berguru"
+ ],
  "6": []
 };
 function yearOfClass(cls){
@@ -316,8 +321,9 @@ function renderSetup(prefillErr){
 /* ============ INIT / SEED ============ */
 async function boot(){
   if(!API_URL){ renderSetup(); return; }
-  const [meta0, students0, evidenceAll0, notesAll0, overridesAll0] = await Promise.all([
-    sGet('meta'), sGet('students'), sGet('evidenceAll'), sGet('notesAll'), sGet('overridesAll')
+  const [meta0, students0, evidenceAll0, notesAll0, overridesAll0, verifiedAll0, anecdotesAll0, activityLog0] = await Promise.all([
+    sGet('meta'), sGet('students'), sGet('evidenceAll'), sGet('notesAll'), sGet('overridesAll'),
+    sGet('verifiedAll'), sGet('anecdotesAll'), sGet('activityLog')
   ]);
   let meta = meta0;
   if(!meta){
@@ -335,12 +341,26 @@ async function boot(){
     meta.topics = JSON.parse(JSON.stringify(DEFAULT_TOPICS_BY_YEAR));
     await sSet('meta', meta);
   }
+  if(meta.topics && Array.isArray(meta.topics["4"]) && meta.topics["4"].length===0 && DEFAULT_TOPICS_BY_YEAR["4"].length>0){
+    meta.topics["4"] = [...DEFAULT_TOPICS_BY_YEAR["4"]];
+    await sSet('meta', meta);
+  }
   DB.meta = meta;
   DB.students = students0 || [];
   DB.evidenceAll = evidenceAll0 || {};
   DB.notesAll = notesAll0 || {};
   DB.overridesAll = overridesAll0 || {};
+  DB.verifiedAll = verifiedAll0 || {};
+  DB.anecdotesAll = anecdotesAll0 || {};
+  DB.activityLog = activityLog0 || [];
   renderLogin();
+}
+
+async function logActivity(action, detail){
+  if(!DB.activityLog) DB.activityLog = [];
+  DB.activityLog.unshift({ts:new Date().toISOString(), user:(SESSION?SESSION.name:'?'), action, detail:detail||''});
+  if(DB.activityLog.length>200) DB.activityLog.length = 200;
+  await sSet('activityLog', DB.activityLog);
 }
 
 function toast(msg, isErr=false){
@@ -390,7 +410,8 @@ function appShell(activeKey, innerHTML){
     {key:'murid', label:'Murid', icon:'🎓'},
     {key:'kelas', label:'Kelas', icon:'🏫'},
     {key:'tajuk', label:'Tajuk', icon:'📚'},
-    {key:'rujukan', label:'Rujukan TP', icon:'📖'}
+    {key:'rujukan', label:'Rujukan TP', icon:'📖'},
+    {key:'log', label:'Log', icon:'🗒️'}
   ] : [
     {key:'dash', label:'Dashboard', icon:'🏠'},
     {key:'murid', label:'Murid', icon:'🎓'},
@@ -440,9 +461,10 @@ function tpOf(student){
 /* ============ ADMIN VIEW ============ */
 async function renderAdmin(){
   VIEW.page='admin';
-  if(!VIEW.tab || !['guru','murid','kelas','tajuk','rujukan'].includes(VIEW.tab)) VIEW.tab='guru';
+  if(!VIEW.tab || !['guru','murid','kelas','tajuk','rujukan','log'].includes(VIEW.tab)) VIEW.tab='guru';
   if(VIEW.tab==='murid'){ await paintMurid(); return; }
   if(VIEW.tab==='rujukan'){ await paintRujukan(); return; }
+  if(VIEW.tab==='log'){ await paintLog(); return; }
   await paintAdmin();
 }
 async function paintAdmin(){
@@ -465,6 +487,7 @@ function navigateShared(k){
   if(SESSION.role==='admin'){
     if(k==='murid') paintMurid();
     else if(k==='rujukan') paintRujukan();
+    else if(k==='log') paintLog();
     else { VIEW.tab=k; paintAdmin(); }
   } else {
     if(k==='dash') paintGuru();
@@ -513,6 +536,26 @@ async function paintRujukan(){
   wireShellNav(navigateShared);
 }
 
+async function paintLog(){
+  VIEW.tab='log';
+  const el = document.getElementById('app');
+  const rows = (DB.activityLog||[]).slice(0,100).map(l=>{
+    const d = new Date(l.ts);
+    const dstr = isNaN(d) ? l.ts : d.toLocaleString('ms-MY');
+    return `<tr><td style="white-space:nowrap;font-size:12px;color:var(--tulisan-lembut);">${dstr}</td><td><b>${l.user}</b></td><td>${l.action}</td><td style="font-size:12.5px;color:var(--tulisan-lembut);">${l.detail||''}</td></tr>`;
+  }).join('');
+  const content = `
+    <div class="page-head"><span class="eyebrow">Panel Pentadbir</span><h1>Log Aktiviti</h1></div>
+    <p style="font-size:12.5px;color:var(--tulisan-lembut);margin-top:-4px;">Jejak audit — siapa buat perubahan, bila. Memaparkan 100 rekod terkini.</p>
+    <div class="card">
+      <div class="table-scroll"><table><thead><tr><th>Masa</th><th>Pengguna</th><th>Tindakan</th><th>Perincian</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="4"><div class="empty"><div class="em-ic">🗒️</div>Tiada aktiviti direkod lagi.</div></td></tr>'}</tbody></table></div>
+    </div>
+  `;
+  el.innerHTML = appShell('log', content);
+  wireShellNav(navigateShared);
+}
+
 function adminGuruHTML(){
   const rows = DB.meta.users.map((u,i)=>`
     <tr><td><div class="trow"><div class="mini-avatar">${initials(u.name)}</div><b>${u.name}</b></div></td><td>${u.username}</td><td>${u.role==='admin'?'Admin':'Guru'}</td>
@@ -534,8 +577,12 @@ function adminMuridHTML(){
   const list = DB.students.filter(s=> cls==='ALL' || s.class===cls);
   const rows = list.map((s)=>{
     const idx = DB.students.indexOf(s);
+    const tp = tpOf(s);
+    const verified = !!DB.verifiedAll[s.id];
     return `<tr><td><div class="trow"><div class="mini-avatar">${initials(s.name)}</div><b>${s.name}</b></div></td><td>${s.class}</td>
-    <td class="row-actions"><button class="btn ghost" onclick="editStudent(${idx})">Edit</button>
+    <td><span class="pill tp${tp}">TP${tp}</span></td>
+    <td>${verified?'✅':'⏳'}</td>
+    <td class="row-actions"><button class="btn ghost" onclick="openStudent('${s.id}')">Lihat</button><button class="btn ghost" onclick="editStudent(${idx})">Edit</button>
     <button class="btn danger" onclick="deleteStudent(${idx})">Padam</button></td></tr>`;
   }).join('');
   const opts = ['ALL',...DB.meta.classes].map(c=>`<option value="${c}" ${c===cls?'selected':''}>${c==='ALL'?'Semua Kelas':c}</option>`).join('');
@@ -543,9 +590,13 @@ function adminMuridHTML(){
   <div class="card">
     <div class="section-head" style="margin-top:0;"><h2>Senarai Murid (${list.length})</h2>
       <button class="btn gold" onclick="openStudentModal()">+ Tambah Murid</button></div>
-    <div class="toolbar"><select id="muridClassFilter">${opts}</select></div>
-    <div class="table-scroll"><table><thead><tr><th>Nama</th><th>Kelas</th><th></th></tr></thead>
-    <tbody>${rows || '<tr><td colspan="3"><div class="empty"><div class="em-ic">🎓</div>Tiada murid dalam kelas ini.</div></td></tr>'}</tbody></table></div>
+    <div class="toolbar">
+      <select id="muridClassFilter">${opts}</select>
+      <button class="btn ghost" onclick="exportStudentsCSV()">⬇ Eksport CSV</button>
+      <button class="btn ghost" onclick="printClassReport()">🖨 Cetak Laporan Kelas</button>
+    </div>
+    <div class="table-scroll"><table><thead><tr><th>Nama</th><th>Kelas</th><th>TP</th><th>Sah</th><th></th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="5"><div class="empty"><div class="em-ic">🎓</div>Tiada murid dalam kelas ini.</div></td></tr>'}</tbody></table></div>
   </div>`;
 }
 
@@ -605,14 +656,14 @@ async function saveUser(editIdx){
   else { DB.meta.users.push({name,username,password,role}); }
   const ok = await sSet('meta', DB.meta);
   if(ok===null){ toast('Gagal simpan ke Google Sheets. Cuba lagi.', true); if(editIdx==null) DB.meta.users.pop(); return; }
-  closeModal(); toast('Akaun disimpan.'); paintAdmin();
+  closeModal(); toast('Akaun disimpan.'); logActivity('Simpan Akaun Guru', name+' ('+username+')'); paintAdmin();
 }
 async function deleteUser(i){
   if(!confirm('Padam akaun ini?')) return;
   const removed = DB.meta.users.splice(i,1);
   const ok = await sSet('meta', DB.meta);
   if(ok===null){ DB.meta.users.splice(i,0,removed[0]); toast('Gagal padam. Cuba lagi.', true); return; }
-  toast('Akaun dipadam.'); paintAdmin();
+  toast('Akaun dipadam.'); logActivity('Padam Akaun Guru', removed[0]?removed[0].name:''); paintAdmin();
 }
 
 /* --- Admin: student CRUD --- */
@@ -637,7 +688,7 @@ async function saveStudent(editIdx){
   else { added = {id:'s'+Date.now()+Math.floor(Math.random()*999), name, class:cls}; DB.students.push(added); }
   const ok = await sSet('students', DB.students);
   if(ok===null){ toast('Gagal simpan ke Google Sheets. Cuba lagi.', true); if(added) DB.students.pop(); return; }
-  closeModal(); toast('Murid disimpan.'); paintMurid();
+  closeModal(); toast('Murid disimpan.'); logActivity('Simpan Murid', name+' - '+cls); paintMurid();
 }
 async function deleteStudent(i){
   if(!confirm('Padam murid ini? Eviden berkaitan turut dipadam.')) return;
@@ -645,8 +696,9 @@ async function deleteStudent(i){
   const ok = await sSet('students', DB.students);
   if(ok===null){ DB.students.splice(i,0,removed); toast('Gagal padam. Cuba lagi.', true); return; }
   delete DB.evidenceAll[removed.id]; delete DB.notesAll[removed.id]; delete DB.overridesAll[removed.id];
-  await Promise.all([sSet('evidenceAll', DB.evidenceAll), sSet('notesAll', DB.notesAll), sSet('overridesAll', DB.overridesAll)]);
-  toast('Murid dipadam.'); paintMurid();
+  delete DB.verifiedAll[removed.id]; delete DB.anecdotesAll[removed.id];
+  await Promise.all([sSet('evidenceAll', DB.evidenceAll), sSet('notesAll', DB.notesAll), sSet('overridesAll', DB.overridesAll), sSet('verifiedAll', DB.verifiedAll), sSet('anecdotesAll', DB.anecdotesAll)]);
+  toast('Murid dipadam.'); logActivity('Padam Murid', removed.name+' - '+removed.class); paintMurid();
 }
 
 /* --- Admin: class/topic --- */
@@ -658,13 +710,13 @@ async function addTopic(year){
   DB.meta.topics[year].push(v);
   const ok = await sSet('meta', DB.meta);
   if(ok===null){ DB.meta.topics[year].pop(); toast('Gagal simpan. Cuba lagi.', true); return; }
-  paintAdmin();
+  logActivity('Tambah Tajuk', 'Tahun '+year+': '+v); paintAdmin();
 }
 async function removeTopic(year, i){
   const removed = DB.meta.topics[year].splice(i,1)[0];
   const ok = await sSet('meta', DB.meta);
   if(ok===null){ DB.meta.topics[year].splice(i,0,removed); toast('Gagal padam. Cuba lagi.', true); return; }
-  paintAdmin();
+  logActivity('Padam Tajuk', 'Tahun '+year+': '+removed); paintAdmin();
 }
 async function addClass(){
   const v = document.getElementById('newClass').value.trim();
@@ -672,13 +724,13 @@ async function addClass(){
   DB.meta.classes.push(v);
   const ok = await sSet('meta', DB.meta);
   if(ok===null){ DB.meta.classes.pop(); toast('Gagal simpan. Cuba lagi.', true); return; }
-  paintAdmin();
+  logActivity('Tambah Kelas', v); paintAdmin();
 }
 async function removeClass(i){
   const removed = DB.meta.classes.splice(i,1)[0];
   const ok = await sSet('meta', DB.meta);
   if(ok===null){ DB.meta.classes.splice(i,0,removed); toast('Gagal padam. Cuba lagi.', true); return; }
-  paintAdmin();
+  logActivity('Padam Kelas', removed); paintAdmin();
 }
 
 /* ============ GURU DASHBOARD ============ */
@@ -711,11 +763,20 @@ async function paintGuru(){
     </div>`;
   }).join('');
   const avgTP = (tpCounts.reduce((s,c,i)=>s+c*(i+1),0)/Math.max(1,DB.students.length)).toFixed(1);
+  const noEvidence = DB.students.filter(s=> s._evidence.length===0);
+  const notifRows = noEvidence.slice(0,6).map(s=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;font-size:13px;"><span style="width:7px;height:7px;border-radius:50%;background:var(--merah);flex-shrink:0;"></span><b>${s.name.toUpperCase()}</b><span style="color:var(--tulisan-lembut);">— belum ada eviden</span></div>`).join('');
+  const notifMore = noEvidence.length>6 ? `<div style="font-size:12px;color:var(--tulisan-lembut);margin-top:4px;">+${noEvidence.length-6} murid lagi</div>` : '';
+  const classNames = DB.meta.classes;
+  const classAvgs = classNames.map(c=>{
+    const studs = DB.students.filter(s=>s.class===c);
+    if(studs.length===0) return 0;
+    return +(studs.reduce((sum,s)=>sum+tpOf(s),0)/studs.length).toFixed(2);
+  });
 
   const content = `
     <div class="school-banner">
       <div class="sb-emoji">📗</div>
-      <div><div class="sb-name">SJK(C) Ladang Grisek</div><div class="sb-meta">Kod: JBC1049 &middot; Panitia Pendidikan Islam</div></div>
+      <div><div class="sb-name">SJK(C) Ladang Grisek</div><div class="sb-meta">Kod: JBC1049 &middot; Panitia Pendidikan Islam &middot; Sesi ${new Date().getFullYear()}</div></div>
     </div>
     <div class="grid-cards">
       <div class="stat-card"><span class="ic">🎓</span><div class="n">${DB.students.length}</div><div class="l">Jumlah Murid</div></div>
@@ -723,8 +784,19 @@ async function paintGuru(){
       <div class="stat-card"><span class="ic">📎</span><div class="n">${Object.values(DB.evidenceAll).reduce((a,e)=>a+e.length,0)}</div><div class="l">Jumlah Eviden</div></div>
       <div class="stat-card"><span class="ic">⭐</span><div class="n">${avgTP}</div><div class="l">Purata TP</div></div>
     </div>
-    <div class="section-head"><h2>Taburan TP Keseluruhan</h2></div>
-    <div class="card"><canvas id="tpDistChart" height="85"></canvas></div>
+    <div class="two-col" style="margin-top:20px;">
+      <div class="card">
+        <h2 style="margin-top:0;">Taburan TP Keseluruhan</h2>
+        <canvas id="tpDistChart" height="85"></canvas>
+      </div>
+      <div class="card">
+        <h2 style="margin-top:0;">🔔 Notifikasi</h2>
+        ${notifRows || '<div class="empty" style="padding:16px;"><div class="em-ic">✅</div>Semua murid sudah ada eviden.</div>'}
+        ${notifMore}
+      </div>
+    </div>
+    <div class="section-head"><h2>Perbandingan TP Antara Kelas</h2></div>
+    <div class="card"><canvas id="classCompChart" height="90"></canvas></div>
     <div class="section-head"><h2>Senarai Murid</h2></div>
     <div class="toolbar"><select id="guruClassFilter">${opts}</select></div>
     <div class="student-list">${cards || '<div class="empty"><div class="em-ic">🎓</div>Tiada murid dalam kelas ini.</div>'}</div>
@@ -737,6 +809,12 @@ async function paintGuru(){
     data:{ labels:['TP1','TP2','TP3','TP4','TP5','TP6'],
       datasets:[{label:'Bilangan Murid', data:tpCounts, backgroundColor:['#B5493D','#C97362','#D6A94C','#C79A4B','#5C9B6E','#3E7A4E'], borderRadius:8, maxBarThickness:48}]},
     options:{plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true, ticks:{stepSize:1}}}}
+  });
+  new Chart(document.getElementById('classCompChart'), {
+    type:'bar',
+    data:{ labels:classNames,
+      datasets:[{label:'Purata TP', data:classAvgs, backgroundColor:'#1B7A4B', borderRadius:8, maxBarThickness:48}]},
+    options:{plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true, max:6}}}
   });
 }
 
@@ -752,8 +830,11 @@ async function paintProfile(){
   s._evidence = DB.evidenceAll[s.id] || [];
   s._override = (DB.overridesAll[s.id]!=null) ? DB.overridesAll[s.id] : null;
   const notes = DB.notesAll[s.id] || {p:'',k:'',c:''};
+  const anecdotes = (DB.anecdotesAll[s.id]||[]).slice().sort((a,b)=> a.date<b.date?1:-1);
+  const isVerified = !!DB.verifiedAll[s.id];
   const autoTP = calcTP(s._evidence);
   const tp = tpOf(s);
+  const isAdminView = SESSION.role==='admin';
   const evRows = s._evidence.slice().sort((a,b)=> a.date<b.date?1:-1).map(ev=>{
     const dotColor = ev.rating==3?'var(--hijau-ok)': ev.rating==2?'var(--emas)':'var(--merah)';
     const thumb = ev.fileType && ev.fileType.startsWith('image') ?
@@ -771,9 +852,11 @@ async function paintProfile(){
       </div>
     </div>`;
   }).join('') || '<div class="empty"><div class="em-ic">📎</div>Belum ada eviden dimuat naik.</div>';
+  const ancRows = anecdotes.map(a=>`<div class="ev-item" style="padding:9px 0;"><div class="ev-info"><div class="d" style="margin-bottom:2px;">${a.date}</div><div style="font-size:13px;">${a.text}</div></div>
+      <button class="btn danger" style="padding:5px 10px;font-size:12px;" onclick="deleteAnecdote('${a.id}')">Padam</button></div>`).join('') || '<div class="empty" style="padding:16px;"><div class="em-ic">📝</div>Tiada anekdot direkod.</div>';
 
   const content = `
-    <div class="no-print"><button class="btn ghost" onclick="paintGuru()">&larr; Kembali ke Senarai</button></div>
+    <div class="no-print"><button class="btn ghost" onclick="${isAdminView?'paintMurid()':'paintGuru()'}">&larr; Kembali ke Senarai</button></div>
     <div class="profile-banner" style="margin-top:16px;">
       <div class="profile-head">
         <div class="profile-id">
@@ -784,11 +867,15 @@ async function paintProfile(){
       </div>
     </div>
     <div class="card" style="margin-top:14px;">
-      <div style="font-size:13px;color:var(--tulisan-lembut);">Deskriptor: <b style="color:var(--hijau);">${TP_DESC[tp]}</b> ${s._override!=null?`(Auto: TP${autoTP})`:''}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+        <div style="font-size:13px;color:var(--tulisan-lembut);">Deskriptor: <b style="color:var(--hijau);">${TP_DESC[tp]}</b> ${s._override!=null?`(Auto: TP${autoTP})`:''}</div>
+        <span class="pill" style="background:${isVerified?'#E4F0E6':'#FBF1DE'};color:${isVerified?'var(--hijau-ok)':'#9A7623'};">${isVerified?'✅ Disahkan (Penyelarasan)':'⏳ Belum Disahkan'}</span>
+      </div>
       <div class="toolbar no-print">
         <button class="btn gold" onclick="openEvidenceModal()">+ Upload Eviden</button>
         <button class="btn ghost" onclick="openOverrideModal()">Override TP</button>
         <button class="btn ghost" onclick="printReport()">🖨 Cetak Laporan</button>
+        ${isAdminView ? `<button class="btn ${isVerified?'danger':''}" onclick="toggleVerify()">${isVerified?'Buka Semula Pengesahan':'✔ Sahkan TP'}</button>` : ''}
       </div>
     </div>
     <div class="two-col">
@@ -802,12 +889,15 @@ async function paintProfile(){
         <h2>Catatan Guru</h2>
         <div class="field"><label>Pemerhatian</label><textarea id="noteP" rows="2">${notes.p||''}</textarea></div>
         <div class="field"><label>Komen Prestasi</label><textarea id="noteK" rows="2">${notes.k||''}</textarea></div>
-        <div class="field"><label>Cadangan</label><textarea id="noteC" rows="2">${notes.c||''}</textarea></div>
+        <div class="field"><label>Cadangan Tindakan Susulan</label><textarea id="noteC" rows="2">${notes.c||''}</textarea></div>
         <button class="btn" onclick="saveNotes()">Simpan Catatan</button>
+        <div class="section-head" style="margin-top:22px;"><h2 style="font-size:15px;">Log Anekdot</h2>
+          <button class="btn ghost" style="padding:5px 11px;font-size:12px;" onclick="openAnecdoteModal()">+ Tambah</button></div>
+        <div>${ancRows}</div>
       </div>
     </div>
   `;
-  el.innerHTML = appShell('dash', content);
+  el.innerHTML = appShell(isAdminView?'murid':'dash', content);
   wireShellNav(navigateShared);
   const p1=s._evidence.filter(e=>e.penggal==='1').length, p2=s._evidence.filter(e=>e.penggal==='2').length;
   const rHigh=s._evidence.filter(e=>e.rating==3).length, rMid=s._evidence.filter(e=>e.rating==2).length, rLow=s._evidence.filter(e=>e.rating==1).length;
@@ -821,6 +911,10 @@ async function paintProfile(){
 function ratingLabel(r){ return r==3?'Tinggi':r==2?'Sederhana':'Rendah'; }
 
 /* --- evidence CRUD --- */
+function penggalFromDate(dateStr){
+  const month = Number((dateStr||'').split('-')[1]);
+  return month>=1 && month<=6 ? '1' : '2';
+}
 function openEvidenceModal(){
   const s = DB.students.find(x=>x.id===VIEW.studentId);
   const year = yearOfClass(s.class);
@@ -838,18 +932,28 @@ function openEvidenceModal(){
   showModal(`
     <h3>Upload Eviden — Tahun ${year}</h3>
     <div class="field"><label>Tajuk Eviden</label><select id="evTopic">${topicOpts}</select></div>
-    <div class="field"><label>Penggal</label><select id="evPenggal"><option value="1">Penggal 1</option><option value="2">Penggal 2</option></select></div>
-    <div class="field"><label>Tarikh</label><input type="date" id="evDate" value="${today}"></div>
+    <div class="field"><label>Tarikh</label><input type="date" id="evDate" value="${today}" onchange="updatePenggalHint()"></div>
+    <div class="field"><label>Penggal (ditentukan automatik ikut tarikh)</label>
+      <div id="evPenggalHint" style="padding:10px 12px;background:var(--krim);border-radius:9px;font-size:13px;font-weight:700;color:var(--hijau-gelap);"></div>
+    </div>
     <div class="field"><label>Tahap Eviden (Penilaian Guru)</label><select id="evRating"><option value="3">Tinggi</option><option value="2" selected>Sederhana</option><option value="1">Rendah</option></select></div>
     <div class="field"><label>Fail (Gambar JPG/PNG atau PDF)</label><input type="file" id="evFile" accept="image/jpeg,image/png,application/pdf"></div>
     <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Batal</button>
     <button class="btn" id="evSaveBtn" onclick="saveEvidence()">Simpan Eviden</button></div>
   `);
+  updatePenggalHint();
+}
+function updatePenggalHint(){
+  const dateEl = document.getElementById('evDate');
+  const hintEl = document.getElementById('evPenggalHint');
+  if(!dateEl || !hintEl) return;
+  const p = penggalFromDate(dateEl.value);
+  hintEl.textContent = p==='1' ? 'Penggal 1 (1 Januari – 30 Jun)' : 'Penggal 2 (1 Julai – 31 Disember)';
 }
 async function saveEvidence(){
   const topic=document.getElementById('evTopic').value;
-  const penggal=document.getElementById('evPenggal').value;
   const date=document.getElementById('evDate').value;
+  const penggal=penggalFromDate(date);
   const rating=document.getElementById('evRating').value;
   const fileInput=document.getElementById('evFile');
   const saveBtn=document.getElementById('evSaveBtn');
@@ -868,7 +972,8 @@ async function saveEvidence(){
     DB.evidenceAll[s.id].push(ev);
     const ok = await sSet('evidenceAll', DB.evidenceAll);
     if(ok===null){ DB.evidenceAll[s.id].pop(); if(saveBtn){saveBtn.disabled=false; saveBtn.textContent='Simpan Eviden';} toast('Gagal simpan ke Google Sheets.', true); return; }
-    closeModal(); toast('Eviden disimpan.'); paintProfile();
+    await unverify(s.id);
+    closeModal(); toast('Eviden disimpan.'); logActivity('Upload Eviden', s.name+' — '+topic); paintProfile();
   };
   reader.readAsDataURL(file);
 }
@@ -879,7 +984,8 @@ async function deleteEvidence(evId){
   DB.evidenceAll[s.id] = before.filter(e=>e.id!==evId);
   const ok = await sSet('evidenceAll', DB.evidenceAll);
   if(ok===null){ DB.evidenceAll[s.id] = before; toast('Gagal padam. Cuba lagi.', true); return; }
-  toast('Eviden dipadam.'); paintProfile();
+  await unverify(s.id);
+  toast('Eviden dipadam.'); logActivity('Padam Eviden', s.name); paintProfile();
 }
 
 /* --- TP override --- */
@@ -901,7 +1007,59 @@ async function saveOverride(){
   if(v===''){ delete DB.overridesAll[s.id]; } else { DB.overridesAll[s.id] = Number(v); }
   const ok = await sSet('overridesAll', DB.overridesAll);
   if(ok===null){ if(prev!=null) DB.overridesAll[s.id]=prev; toast('Gagal simpan. Cuba lagi.', true); return; }
-  closeModal(); toast('TP dikemas kini.'); paintProfile();
+  await unverify(s.id);
+  closeModal(); toast('TP dikemas kini.'); logActivity('Override TP', s.name+' → '+(v===''?'Auto':'TP'+v)); paintProfile();
+}
+
+/* --- Penyelarasan / Pengesahan TP (Admin) --- */
+async function unverify(studentId){
+  if(DB.verifiedAll[studentId]){
+    delete DB.verifiedAll[studentId];
+    await sSet('verifiedAll', DB.verifiedAll);
+  }
+}
+async function toggleVerify(){
+  const s = DB.students.find(x=>x.id===VIEW.studentId);
+  const cur = !!DB.verifiedAll[s.id];
+  if(cur){ delete DB.verifiedAll[s.id]; } else { DB.verifiedAll[s.id] = true; }
+  const ok = await sSet('verifiedAll', DB.verifiedAll);
+  if(ok===null){ if(cur) DB.verifiedAll[s.id]=true; toast('Gagal simpan. Cuba lagi.', true); return; }
+  toast(cur?'Pengesahan dibuka semula.':'TP disahkan.');
+  logActivity(cur?'Buka Semula Pengesahan TP':'Sahkan TP (Penyelarasan)', s.name+' — TP'+tpOf(s));
+  paintProfile();
+}
+
+/* --- Log Anekdot --- */
+function openAnecdoteModal(){
+  const today = new Date().toISOString().slice(0,10);
+  showModal(`
+    <h3>Tambah Anekdot</h3>
+    <p style="font-size:12.5px;color:var(--tulisan-lembut);margin-top:-6px;">Catatan ringkas peristiwa/tingkah laku murid yang signifikan — tidak perlukan fail eviden.</p>
+    <div class="field"><label>Tarikh</label><input type="date" id="ancDate" value="${today}"></div>
+    <div class="field"><label>Catatan</label><textarea id="ancText" rows="3" placeholder="cth: Menunjukkan sikap bertimbang rasa semasa membantu rakan membaca ayat."></textarea></div>
+    <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Batal</button>
+    <button class="btn" onclick="saveAnecdote()">Simpan</button></div>
+  `);
+}
+async function saveAnecdote(){
+  const date = document.getElementById('ancDate').value;
+  const text = document.getElementById('ancText').value.trim();
+  if(!text){ toast('Sila isi catatan.', true); return; }
+  const s = DB.students.find(x=>x.id===VIEW.studentId);
+  if(!DB.anecdotesAll[s.id]) DB.anecdotesAll[s.id] = [];
+  const anc = {id:'a'+Date.now(), date, text};
+  DB.anecdotesAll[s.id].push(anc);
+  const ok = await sSet('anecdotesAll', DB.anecdotesAll);
+  if(ok===null){ DB.anecdotesAll[s.id].pop(); toast('Gagal simpan. Cuba lagi.', true); return; }
+  closeModal(); toast('Anekdot disimpan.'); logActivity('Tambah Anekdot', s.name); paintProfile();
+}
+async function deleteAnecdote(id){
+  if(!confirm('Padam anekdot ini?')) return;
+  const s = DB.students.find(x=>x.id===VIEW.studentId);
+  DB.anecdotesAll[s.id] = (DB.anecdotesAll[s.id]||[]).filter(a=>a.id!==id);
+  const ok = await sSet('anecdotesAll', DB.anecdotesAll);
+  if(ok===null){ toast('Gagal padam. Cuba lagi.', true); return; }
+  toast('Anekdot dipadam.'); paintProfile();
 }
 
 /* --- notes --- */
@@ -912,21 +1070,25 @@ async function saveNotes(){
   DB.notesAll[s.id] = notes;
   const ok = await sSet('notesAll', DB.notesAll);
   if(ok===null){ if(prev) DB.notesAll[s.id]=prev; else delete DB.notesAll[s.id]; toast('Gagal simpan. Cuba lagi.', true); return; }
-  toast('Catatan disimpan.');
+  toast('Catatan disimpan.'); logActivity('Kemas Kini Catatan', s.name);
 }
 
 /* --- print --- */
 function printReport(){
   const s = DB.students.find(x=>x.id===VIEW.studentId);
   const notes = DB.notesAll[s.id] || {p:'',k:'',c:''};
+  const anecdotes = DB.anecdotesAll[s.id] || [];
+  const verified = !!DB.verifiedAll[s.id];
   const tp = tpOf(s);
   const p1 = s._evidence.filter(e=>e.penggal==='1');
   const p2 = s._evidence.filter(e=>e.penggal==='2');
   const evRow = e=>`<tr><td>${e.topic}</td><td>${e.date}</td><td>${ratingLabel(e.rating)}</td></tr>`;
+  const ancRow = a=>`<tr><td style="width:20%">${a.date}</td><td>${a.text}</td></tr>`;
   document.getElementById('printArea').innerHTML = `
     <div class="pr-header"><div><h1>Laporan PBD — Pendidikan Islam</h1><div style="font-size:12px;color:#555;">Dijana pada ${new Date().toLocaleDateString('ms-MY')}</div></div>
     <div style="text-align:right;font-size:12px;"><b>${s.name}</b><br>${s.class}</div></div>
-    <table class="pr-table"><tr><th style="width:30%">Tahap Penguasaan (TP) Muktamad</th><td><b>TP${tp}</b> — ${TP_DESC[tp]}</td></tr></table>
+    <table class="pr-table"><tr><th style="width:30%">Tahap Penguasaan (TP) Muktamad</th><td><b>TP${tp}</b> — ${TP_DESC[tp]}</td></tr>
+    <tr><th>Status Penyelarasan</th><td>${verified?'Disahkan':'Belum Disahkan'}</td></tr></table>
     <h3 style="font-size:14px;">Eviden Penggal 1 (${p1.length})</h3>
     <table class="pr-table"><thead><tr><th>Tajuk</th><th>Tarikh</th><th>Tahap</th></tr></thead><tbody>${p1.map(evRow).join('')||'<tr><td colspan=3>Tiada</td></tr>'}</tbody></table>
     <h3 style="font-size:14px;">Eviden Penggal 2 (${p2.length})</h3>
@@ -935,11 +1097,54 @@ function printReport(){
     <table class="pr-table">
       <tr><th style="width:25%">Pemerhatian</th><td>${notes.p||'-'}</td></tr>
       <tr><th>Komen Prestasi</th><td>${notes.k||'-'}</td></tr>
-      <tr><th>Cadangan</th><td>${notes.c||'-'}</td></tr>
+      <tr><th>Cadangan Tindakan Susulan</th><td>${notes.c||'-'}</td></tr>
     </table>
-    <div style="margin-top:30px;font-size:12px;">Tandatangan Guru: ______________________</div>
+    <h3 style="font-size:14px;">Log Anekdot</h3>
+    <table class="pr-table"><tbody>${anecdotes.map(ancRow).join('')||'<tr><td>Tiada anekdot direkod.</td></tr>'}</tbody></table>
+    <div style="margin-top:30px;font-size:12px;">Tandatangan Guru: ______________________ &nbsp;&nbsp;&nbsp; Disahkan oleh (PGB/PK1): ______________________</div>
   `;
   window.print();
+  logActivity('Cetak Laporan Individu', s.name);
+}
+
+function printClassReport(){
+  const cls = VIEW.classFilter;
+  if(cls==='ALL'){ toast('Sila pilih satu kelas dahulu untuk cetak laporan kelas.', true); return; }
+  const list = DB.students.filter(s=>s.class===cls);
+  const rows = list.map(s=>{
+    const tp = tpOf(s);
+    const ev = (DB.evidenceAll[s.id]||[]).length;
+    const verified = DB.verifiedAll[s.id] ? 'Disahkan' : 'Belum Disahkan';
+    return `<tr><td>${s.name}</td><td>TP${tp}</td><td>${TP_DESC[tp]}</td><td>${ev}</td><td>${verified}</td></tr>`;
+  }).join('');
+  document.getElementById('printArea').innerHTML = `
+    <div class="pr-header"><div><h1>Laporan PBD Kelas — Pendidikan Islam</h1><div style="font-size:12px;color:#555;">Dijana pada ${new Date().toLocaleDateString('ms-MY')}</div></div>
+    <div style="text-align:right;font-size:12px;"><b>${cls}</b><br>${list.length} murid</div></div>
+    <table class="pr-table"><thead><tr><th>Nama</th><th>TP</th><th>Deskriptor</th><th>Eviden</th><th>Status</th></tr></thead><tbody>${rows||'<tr><td colspan="5">Tiada murid</td></tr>'}</tbody></table>
+    <div style="margin-top:30px;font-size:12px;">Disediakan oleh: ______________________ &nbsp;&nbsp;&nbsp; Disahkan oleh (PGB/PK1): ______________________</div>
+  `;
+  window.print();
+  logActivity('Cetak Laporan Kelas', cls);
+}
+
+function exportStudentsCSV(){
+  const cls = VIEW.classFilter;
+  const list = DB.students.filter(s=> cls==='ALL' || s.class===cls);
+  const header = ['Nama','Kelas','TP','Deskriptor','Status Pengesahan','Jumlah Eviden'];
+  const rows = list.map(s=>{
+    const tp = tpOf(s);
+    const ev = (DB.evidenceAll[s.id]||[]).length;
+    const verified = DB.verifiedAll[s.id] ? 'Disahkan' : 'Belum Disahkan';
+    return [s.name, s.class, 'TP'+tp, TP_DESC[tp], verified, ev];
+  });
+  const csvContent = [header, ...rows].map(r=> r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const blob = new Blob(['\ufeff'+csvContent], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'senarai-murid-pbd-'+(cls==='ALL'?'semua':cls.replace(/\s+/g,'-'))+'.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  logActivity('Eksport CSV', cls);
 }
 
 /* ============ MODAL HELPERS ============ */

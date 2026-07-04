@@ -215,7 +215,7 @@ function initials(name){
 }
 
 /* ============ APP STATE ============ */
-let DB = { meta:null, students:[], evidenceCache:{}, notesCache:{} };
+let DB = { meta:null, students:[], evidenceAll:{}, notesAll:{}, overridesAll:{} };
 let SESSION = null;
 let VIEW = { page:'login', tab:'guru', classFilter:'ALL', studentId:null };
 
@@ -261,7 +261,10 @@ function renderSetup(prefillErr){
 /* ============ INIT / SEED ============ */
 async function boot(){
   if(!API_URL){ renderSetup(); return; }
-  let meta = await sGet('meta');
+  const [meta0, students0, evidenceAll0, notesAll0, overridesAll0] = await Promise.all([
+    sGet('meta'), sGet('students'), sGet('evidenceAll'), sGet('notesAll'), sGet('overridesAll')
+  ]);
+  let meta = meta0;
   if(!meta){
     meta = {
       users:[{username:'admin', password:'admin123', role:'admin', name:'Pentadbir Sistem'}],
@@ -271,7 +274,10 @@ async function boot(){
     await sSet('meta', meta);
   }
   DB.meta = meta;
-  DB.students = await sGet('students') || [];
+  DB.students = students0 || [];
+  DB.evidenceAll = evidenceAll0 || {};
+  DB.notesAll = notesAll0 || {};
+  DB.overridesAll = overridesAll0 || {};
   renderLogin();
 }
 
@@ -330,7 +336,8 @@ function appShell(activeKey, innerHTML){
     {key:'murid', label:'Urus Murid', icon:'🎓'},
     {key:'kelas', label:'Kelas &amp; Tajuk', icon:'📚'}
   ] : [
-    {key:'dash', label:'Dashboard', icon:'🏠'}
+    {key:'dash', label:'Dashboard', icon:'🏠'},
+    {key:'murid', label:'Urus Murid', icon:'🎓'}
   ];
   return `
   <div class="shell">
@@ -365,30 +372,45 @@ function calcTP(evList){
   return Math.min(6, Math.max(1, Math.round(raw*6)));
 }
 function tpOf(student){
-  if(student._override!=null && student._override!==undefined) return student._override;
-  return calcTP(student._evidence||[]);
+  const ov = DB.overridesAll[student.id];
+  if(ov!=null) return ov;
+  return calcTP(DB.evidenceAll[student.id]||[]);
 }
 
 /* ============ ADMIN VIEW ============ */
 async function renderAdmin(){
   VIEW.page='admin';
   if(!VIEW.tab || !['guru','murid','kelas'].includes(VIEW.tab)) VIEW.tab='guru';
+  if(VIEW.tab==='murid'){ await paintMurid(); return; }
   await paintAdmin();
 }
 async function paintAdmin(){
   const el = document.getElementById('app');
   let body='';
   if(VIEW.tab==='guru') body = adminGuruHTML();
-  if(VIEW.tab==='murid') body = adminMuridHTML();
   if(VIEW.tab==='kelas') body = adminKelasHTML();
-  const heading = VIEW.tab==='guru'?'Urus Guru':VIEW.tab==='murid'?'Urus Murid':'Kelas &amp; Tajuk';
+  const heading = VIEW.tab==='guru'?'Urus Guru':'Kelas &amp; Tajuk';
   const content = `
     <div class="page-head"><span class="eyebrow">Panel Pentadbir</span><h1>${heading}</h1></div>
     ${body}`;
   el.innerHTML = appShell(VIEW.tab, content);
-  wireShellNav(k=>{VIEW.tab=k; paintAdmin();});
+  wireShellNav(k=>{ VIEW.tab=k; if(k==='murid'){ paintMurid(); } else { paintAdmin(); } });
+}
+
+/* --- Shared: Murid management (Admin + Guru) --- */
+async function paintMurid(){
+  VIEW.tab='murid';
+  const el = document.getElementById('app');
+  const content = `
+    <div class="page-head"><span class="eyebrow">${SESSION.role==='admin'?'Panel Pentadbir':'Dashboard Guru'}</span><h1>Urus Murid</h1></div>
+    ${adminMuridHTML()}`;
+  el.innerHTML = appShell('murid', content);
+  wireShellNav(k=>{
+    if(SESSION.role==='admin'){ VIEW.tab=k; if(k==='murid') paintMurid(); else paintAdmin(); }
+    else { if(k==='dash') paintGuru(); else paintMurid(); }
+  });
   const f = document.getElementById('muridClassFilter');
-  if(f) f.onchange=()=>{VIEW.classFilter=f.value; paintAdmin();};
+  if(f) f.onchange=()=>{VIEW.classFilter=f.value; paintMurid();};
 }
 
 function adminGuruHTML(){
@@ -469,12 +491,16 @@ async function saveUser(editIdx){
   if(dup){ toast('Nama pengguna telah digunakan.', true); return; }
   if(editIdx!=null){ DB.meta.users[editIdx] = {name,username,password,role}; }
   else { DB.meta.users.push({name,username,password,role}); }
-  await sSet('meta', DB.meta);
+  const ok = await sSet('meta', DB.meta);
+  if(ok===null){ toast('Gagal simpan ke Google Sheets. Cuba lagi.', true); if(editIdx==null) DB.meta.users.pop(); return; }
   closeModal(); toast('Akaun disimpan.'); paintAdmin();
 }
 async function deleteUser(i){
   if(!confirm('Padam akaun ini?')) return;
-  DB.meta.users.splice(i,1); await sSet('meta', DB.meta); toast('Akaun dipadam.'); paintAdmin();
+  const removed = DB.meta.users.splice(i,1);
+  const ok = await sSet('meta', DB.meta);
+  if(ok===null){ DB.meta.users.splice(i,0,removed[0]); toast('Gagal padam. Cuba lagi.', true); return; }
+  toast('Akaun dipadam.'); paintAdmin();
 }
 
 /* --- Admin: student CRUD --- */
@@ -494,34 +520,51 @@ async function saveStudent(editIdx){
   const name=document.getElementById('mSName').value.trim();
   const cls=document.getElementById('mSClass').value;
   if(!name){ toast('Sila masukkan nama murid.', true); return; }
+  let added=null;
   if(editIdx!=null){ DB.students[editIdx].name=name; DB.students[editIdx].class=cls; }
-  else { DB.students.push({id:'s'+Date.now()+Math.floor(Math.random()*999), name, class:cls}); }
-  await sSet('students', DB.students);
-  closeModal(); toast('Murid disimpan.'); paintAdmin();
+  else { added = {id:'s'+Date.now()+Math.floor(Math.random()*999), name, class:cls}; DB.students.push(added); }
+  const ok = await sSet('students', DB.students);
+  if(ok===null){ toast('Gagal simpan ke Google Sheets. Cuba lagi.', true); if(added) DB.students.pop(); return; }
+  closeModal(); toast('Murid disimpan.'); paintMurid();
 }
 async function deleteStudent(i){
   if(!confirm('Padam murid ini? Eviden berkaitan turut dipadam.')) return;
-  DB.students.splice(i,1);
-  await sSet('students', DB.students);
-  toast('Murid dipadam.'); paintAdmin();
+  const removed = DB.students.splice(i,1)[0];
+  const ok = await sSet('students', DB.students);
+  if(ok===null){ DB.students.splice(i,0,removed); toast('Gagal padam. Cuba lagi.', true); return; }
+  delete DB.evidenceAll[removed.id]; delete DB.notesAll[removed.id]; delete DB.overridesAll[removed.id];
+  await Promise.all([sSet('evidenceAll', DB.evidenceAll), sSet('notesAll', DB.notesAll), sSet('overridesAll', DB.overridesAll)]);
+  toast('Murid dipadam.'); paintMurid();
 }
 
 /* --- Admin: class/topic --- */
 async function addTopic(){
   const v = document.getElementById('newTopic').value.trim();
   if(!v) return;
-  DB.meta.topics.push(v); await sSet('meta', DB.meta); paintAdmin();
+  DB.meta.topics.push(v);
+  const ok = await sSet('meta', DB.meta);
+  if(ok===null){ DB.meta.topics.pop(); toast('Gagal simpan. Cuba lagi.', true); return; }
+  paintAdmin();
 }
 async function removeTopic(i){
-  DB.meta.topics.splice(i,1); await sSet('meta', DB.meta); paintAdmin();
+  const removed = DB.meta.topics.splice(i,1)[0];
+  const ok = await sSet('meta', DB.meta);
+  if(ok===null){ DB.meta.topics.splice(i,0,removed); toast('Gagal padam. Cuba lagi.', true); return; }
+  paintAdmin();
 }
 async function addClass(){
   const v = document.getElementById('newClass').value.trim();
   if(!v) return;
-  DB.meta.classes.push(v); await sSet('meta', DB.meta); paintAdmin();
+  DB.meta.classes.push(v);
+  const ok = await sSet('meta', DB.meta);
+  if(ok===null){ DB.meta.classes.pop(); toast('Gagal simpan. Cuba lagi.', true); return; }
+  paintAdmin();
 }
 async function removeClass(i){
-  DB.meta.classes.splice(i,1); await sSet('meta', DB.meta); paintAdmin();
+  const removed = DB.meta.classes.splice(i,1)[0];
+  const ok = await sSet('meta', DB.meta);
+  if(ok===null){ DB.meta.classes.splice(i,0,removed); toast('Gagal padam. Cuba lagi.', true); return; }
+  paintAdmin();
 }
 
 /* ============ GURU DASHBOARD ============ */
@@ -533,11 +576,10 @@ async function paintGuru(){
   VIEW.page='guru'; VIEW.tab='dash';
   const el = document.getElementById('app');
   const cls = VIEW.classFilter;
-  for(const s of DB.students){
-    if(!DB.evidenceCache[s.id]) DB.evidenceCache[s.id] = await sGet('evidence:'+s.id) || [];
-    s._evidence = DB.evidenceCache[s.id];
-    if(s._override===undefined){ const o = await sGet('tpover:'+s.id); s._override = (o && o.v!=null) ? o.v : null; }
-  }
+  DB.students.forEach(s=>{
+    s._evidence = DB.evidenceAll[s.id] || [];
+    s._override = (DB.overridesAll[s.id]!=null) ? DB.overridesAll[s.id] : null;
+  });
   const tpCounts=[0,0,0,0,0,0];
   DB.students.forEach(s=> tpCounts[tpOf(s)-1]++);
   const list = DB.students.filter(s=> cls==='ALL' || s.class===cls);
@@ -557,7 +599,7 @@ async function paintGuru(){
     <div class="grid-cards">
       <div class="stat-card"><span class="ic">🎓</span><div class="n">${DB.students.length}</div><div class="l">Jumlah Murid</div></div>
       <div class="stat-card"><span class="ic">🏫</span><div class="n">${DB.meta.classes.length}</div><div class="l">Kelas</div></div>
-      <div class="stat-card"><span class="ic">📎</span><div class="n">${Object.values(DB.evidenceCache).reduce((a,e)=>a+e.length,0)}</div><div class="l">Jumlah Eviden</div></div>
+      <div class="stat-card"><span class="ic">📎</span><div class="n">${Object.values(DB.evidenceAll).reduce((a,e)=>a+e.length,0)}</div><div class="l">Jumlah Eviden</div></div>
       <div class="stat-card"><span class="ic">⭐</span><div class="n">${avgTP}</div><div class="l">Purata TP Keseluruhan</div></div>
     </div>
     <div class="section-head"><h2>Taburan TP Keseluruhan</h2></div>
@@ -567,7 +609,7 @@ async function paintGuru(){
     <div class="student-grid">${cards || '<div class="empty" style="grid-column:1/-1;"><div class="em-ic">🎓</div>Tiada murid dalam kelas ini.</div>'}</div>
   `;
   el.innerHTML = appShell('dash', content);
-  wireShellNav(()=>{});
+  wireShellNav(k=>{ if(k==='murid') paintMurid(); });
   document.getElementById('guruClassFilter').onchange=(e)=>{VIEW.classFilter=e.target.value; paintGuru();};
   new Chart(document.getElementById('tpDistChart'), {
     type:'bar',
@@ -586,11 +628,9 @@ async function paintProfile(){
   const el = document.getElementById('app');
   const s = DB.students.find(x=>x.id===VIEW.studentId);
   if(!s){ paintGuru(); return; }
-  if(!DB.evidenceCache[s.id]) DB.evidenceCache[s.id] = await sGet('evidence:'+s.id) || [];
-  s._evidence = DB.evidenceCache[s.id];
-  if(s._override===undefined){ const o = await sGet('tpover:'+s.id); s._override = (o && o.v!=null) ? o.v : null; }
-  if(DB.notesCache[s.id]===undefined){ DB.notesCache[s.id] = await sGet('notes:'+s.id) || {p:'',k:'',c:''}; }
-  const notes = DB.notesCache[s.id];
+  s._evidence = DB.evidenceAll[s.id] || [];
+  s._override = (DB.overridesAll[s.id]!=null) ? DB.overridesAll[s.id] : null;
+  const notes = DB.notesAll[s.id] || {p:'',k:'',c:''};
   const autoTP = calcTP(s._evidence);
   const tp = tpOf(s);
   const evRows = s._evidence.slice().sort((a,b)=> a.date<b.date?1:-1).map(ev=>{
@@ -647,7 +687,7 @@ async function paintProfile(){
     </div>
   `;
   el.innerHTML = appShell('dash', content);
-  wireShellNav(k=>{ if(k==='dash') paintGuru(); });
+  wireShellNav(k=>{ if(k==='dash') paintGuru(); else if(k==='murid') paintMurid(); });
   const p1=s._evidence.filter(e=>e.penggal==='1').length, p2=s._evidence.filter(e=>e.penggal==='2').length;
   const rHigh=s._evidence.filter(e=>e.rating==3).length, rMid=s._evidence.filter(e=>e.rating==2).length, rLow=s._evidence.filter(e=>e.rating==1).length;
   new Chart(document.getElementById('studTPChart'), {
@@ -692,10 +732,10 @@ async function saveEvidence(){
     if(!uploaded || !uploaded.url){ if(saveBtn){saveBtn.disabled=false; saveBtn.textContent='Simpan Eviden';} toast('Gagal muat naik fail.', true); return; }
     const s = DB.students.find(x=>x.id===VIEW.studentId);
     const ev = {id:'e'+Date.now(), topic, penggal, date, rating, fileType:file.type, fileUrl:uploaded.url};
-    s._evidence.push(ev);
-    const res = await sSet('evidence:'+s.id, s._evidence);
-    if(res===null){ s._evidence.pop(); if(saveBtn){saveBtn.disabled=false; saveBtn.textContent='Simpan Eviden';} return; }
-    DB.evidenceCache[s.id]=s._evidence;
+    if(!DB.evidenceAll[s.id]) DB.evidenceAll[s.id] = [];
+    DB.evidenceAll[s.id].push(ev);
+    const ok = await sSet('evidenceAll', DB.evidenceAll);
+    if(ok===null){ DB.evidenceAll[s.id].pop(); if(saveBtn){saveBtn.disabled=false; saveBtn.textContent='Simpan Eviden';} toast('Gagal simpan ke Google Sheets.', true); return; }
     closeModal(); toast('Eviden disimpan.'); paintProfile();
   };
   reader.readAsDataURL(file);
@@ -703,9 +743,10 @@ async function saveEvidence(){
 async function deleteEvidence(evId){
   if(!confirm('Padam eviden ini?')) return;
   const s = DB.students.find(x=>x.id===VIEW.studentId);
-  s._evidence = s._evidence.filter(e=>e.id!==evId);
-  await sSet('evidence:'+s.id, s._evidence);
-  DB.evidenceCache[s.id]=s._evidence;
+  const before = DB.evidenceAll[s.id] || [];
+  DB.evidenceAll[s.id] = before.filter(e=>e.id!==evId);
+  const ok = await sSet('evidenceAll', DB.evidenceAll);
+  if(ok===null){ DB.evidenceAll[s.id] = before; toast('Gagal padam. Cuba lagi.', true); return; }
   toast('Eviden dipadam.'); paintProfile();
 }
 
@@ -724,24 +765,28 @@ function openOverrideModal(){
 async function saveOverride(){
   const v = document.getElementById('ovVal').value;
   const s = DB.students.find(x=>x.id===VIEW.studentId);
-  s._override = v===''? null : Number(v);
-  await sSet('tpover:'+s.id, {v:s._override});
+  const prev = DB.overridesAll[s.id];
+  if(v===''){ delete DB.overridesAll[s.id]; } else { DB.overridesAll[s.id] = Number(v); }
+  const ok = await sSet('overridesAll', DB.overridesAll);
+  if(ok===null){ if(prev!=null) DB.overridesAll[s.id]=prev; toast('Gagal simpan. Cuba lagi.', true); return; }
   closeModal(); toast('TP dikemas kini.'); paintProfile();
 }
 
 /* --- notes --- */
 async function saveNotes(){
   const s = DB.students.find(x=>x.id===VIEW.studentId);
+  const prev = DB.notesAll[s.id];
   const notes = {p:document.getElementById('noteP').value, k:document.getElementById('noteK').value, c:document.getElementById('noteC').value};
-  await sSet('notes:'+s.id, notes);
-  DB.notesCache[s.id]=notes;
+  DB.notesAll[s.id] = notes;
+  const ok = await sSet('notesAll', DB.notesAll);
+  if(ok===null){ if(prev) DB.notesAll[s.id]=prev; else delete DB.notesAll[s.id]; toast('Gagal simpan. Cuba lagi.', true); return; }
   toast('Catatan disimpan.');
 }
 
 /* --- print --- */
 function printReport(){
   const s = DB.students.find(x=>x.id===VIEW.studentId);
-  const notes = DB.notesCache[s.id] || {p:'',k:'',c:''};
+  const notes = DB.notesAll[s.id] || {p:'',k:'',c:''};
   const tp = tpOf(s);
   const p1 = s._evidence.filter(e=>e.penggal==='1');
   const p2 = s._evidence.filter(e=>e.penggal==='2');

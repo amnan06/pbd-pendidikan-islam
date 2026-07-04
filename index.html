@@ -173,6 +173,17 @@ tr:hover td{background:#F5F9F5;}
 
 /* PRINT */
 #printArea{display:none;}
+
+/* TP REFERENCE GUIDE */
+.tpref-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:14px;}
+@media(max-width:700px){.tpref-grid{grid-template-columns:1fr;}}
+.tpref-card{background:var(--kad);border:2px solid var(--garis);border-radius:var(--radius);padding:16px 18px;display:flex;gap:14px;align-items:flex-start;box-shadow:var(--shadow);}
+.tpref-num{font-size:44px;font-weight:900;line-height:1;flex-shrink:0;min-width:44px;font-family:'Inter',sans-serif;}
+.tpref-title{font-weight:800;font-size:14.5px;color:var(--tulisan);}
+.tpref-sub{font-weight:600;font-size:12px;color:var(--tulisan-lembut);}
+.tpref-desc{font-size:12.5px;color:var(--tulisan-lembut);margin:6px 0;line-height:1.5;}
+.tpref-list{margin:4px 0 0;padding-left:18px;font-size:12.5px;color:var(--tulisan);line-height:1.6;}
+.tpref-list li{margin-bottom:2px;}
 @media print{
   body *{visibility:hidden;}
   #printArea, #printArea *{visibility:visible;}
@@ -252,9 +263,28 @@ function yearsFromClasses(){
   return Array.from(set);
 }
 const TP_DESC = {
- 1:"Tahu", 2:"Tahu dan Faham", 3:"Tahu, Faham dan Boleh Buat",
- 4:"Tahu, Faham dan Buat dengan Baik", 5:"Tahu, Faham dan Buat dengan Beradab",
- 6:"Tahu, Faham dan Buat dengan Beradab Mithali (Contoh Terpuji)"
+ 1:"Tahu (Mengetahui)", 2:"Faham (Memahami)", 3:"Aplikasi (Mengaplikasi)",
+ 4:"Analisis (Menganalisis)", 5:"Menilai", 6:"Kreatif (Menjana Idea)"
+};
+const TP_INFO = {
+ 1:{title:'TAHU', sub:'Mengetahui', color:'#D93B3B',
+    desc:'Mengetahui pengetahuan asas, kemahiran dan nilai dalam Pendidikan Islam.',
+    bullets:['Mengenal huruf hijaiyah.','Mengetahui rukun Islam & Iman.','Mengetahui adab asas.']},
+ 2:{title:'FAHAM', sub:'Memahami', color:'#E8792A',
+    desc:'Memahami pengetahuan asas, kemahiran dan nilai dalam Pendidikan Islam.',
+    bullets:['Menjelaskan pengertian.','Menerangkan cara pelaksanaan ibadah.','Memahami sirah nabi.']},
+ 3:{title:'APLIKASI', sub:'Mengaplikasi', color:'#C9A415',
+    desc:'Mengaplikasikan pengetahuan, kemahiran dan nilai dalam situasi berbeza.',
+    bullets:['Melaksanakan solat dengan betul.','Membaca al-Quran dengan bertajwid.','Mengamalkan adab dalam kehidupan.']},
+ 4:{title:'ANALISIS', sub:'Menganalisis', color:'#1E8449',
+    desc:'Menganalisis pengetahuan, kemahiran dan nilai serta mengamalkannya.',
+    bullets:['Membezakan antara yang hak dan batil.','Menghuraikan hikmah ibadah.','Mengaitkan sirah dengan kehidupan.']},
+ 5:{title:'MENILAI', sub:'Menilai', color:'#1F5DA6',
+    desc:'Menilai pengetahuan, kemahiran dan nilai serta mengamalkannya secara istiqamah.',
+    bullets:['Membuat pertimbangan berdasarkan dalil.','Menghayati nilai murni.','Menjadi contoh teladan.']},
+ 6:{title:'KREATIF', sub:'Menjana Idea', color:'#7B2D8E',
+    desc:'Menjana idea kreatif, inovatif dan boleh dicontohi serta mengamalkannya.',
+    bullets:['Menghasilkan karya kreatif (tulisan khat, bercerita).','Menyelesaikan masalah dengan hikmah.','Memimpin rakan sebaya dalam kebaikan.']}
 };
 
 /* ============ SETUP SCREEN (Apps Script URL) ============ */
@@ -359,10 +389,12 @@ function appShell(activeKey, innerHTML){
     {key:'guru', label:'Guru', icon:'👤'},
     {key:'murid', label:'Murid', icon:'🎓'},
     {key:'kelas', label:'Kelas', icon:'🏫'},
-    {key:'tajuk', label:'Tajuk', icon:'📚'}
+    {key:'tajuk', label:'Tajuk', icon:'📚'},
+    {key:'rujukan', label:'Rujukan TP', icon:'📖'}
   ] : [
     {key:'dash', label:'Dashboard', icon:'🏠'},
-    {key:'murid', label:'Murid', icon:'🎓'}
+    {key:'murid', label:'Murid', icon:'🎓'},
+    {key:'rujukan', label:'Rujukan TP', icon:'📖'}
   ];
   return `
   <header class="topnav no-print">
@@ -408,8 +440,9 @@ function tpOf(student){
 /* ============ ADMIN VIEW ============ */
 async function renderAdmin(){
   VIEW.page='admin';
-  if(!VIEW.tab || !['guru','murid','kelas','tajuk'].includes(VIEW.tab)) VIEW.tab='guru';
+  if(!VIEW.tab || !['guru','murid','kelas','tajuk','rujukan'].includes(VIEW.tab)) VIEW.tab='guru';
   if(VIEW.tab==='murid'){ await paintMurid(); return; }
+  if(VIEW.tab==='rujukan'){ await paintRujukan(); return; }
   await paintAdmin();
 }
 async function paintAdmin(){
@@ -423,10 +456,23 @@ async function paintAdmin(){
     <div class="page-head"><span class="eyebrow">Panel Pentadbir</span><h1>${heading}</h1></div>
     ${body}`;
   el.innerHTML = appShell(VIEW.tab, content);
-  wireShellNav(k=>{ VIEW.tab=k; if(k==='murid'){ paintMurid(); } else { paintAdmin(); } });
+  wireShellNav(navigateShared);
 }
 
 /* --- Shared: Murid management (Admin + Guru) --- */
+/* --- Shared nav handler covering Dashboard/Murid/Rujukan/Admin tabs --- */
+function navigateShared(k){
+  if(SESSION.role==='admin'){
+    if(k==='murid') paintMurid();
+    else if(k==='rujukan') paintRujukan();
+    else { VIEW.tab=k; paintAdmin(); }
+  } else {
+    if(k==='dash') paintGuru();
+    else if(k==='murid') paintMurid();
+    else paintRujukan();
+  }
+}
+
 async function paintMurid(){
   VIEW.tab='murid';
   const el = document.getElementById('app');
@@ -434,12 +480,37 @@ async function paintMurid(){
     <div class="page-head"><span class="eyebrow">${SESSION.role==='admin'?'Panel Pentadbir':'Dashboard Guru'}</span><h1>Urus Murid</h1></div>
     ${adminMuridHTML()}`;
   el.innerHTML = appShell('murid', content);
-  wireShellNav(k=>{
-    if(SESSION.role==='admin'){ VIEW.tab=k; if(k==='murid') paintMurid(); else paintAdmin(); }
-    else { if(k==='dash') paintGuru(); else paintMurid(); }
-  });
+  wireShellNav(navigateShared);
   const f = document.getElementById('muridClassFilter');
   if(f) f.onchange=()=>{VIEW.classFilter=f.value; paintMurid();};
+}
+
+async function paintRujukan(){
+  VIEW.tab='rujukan';
+  const el = document.getElementById('app');
+  const cards = [1,2,3,4,5,6].map(n=>{
+    const t = TP_INFO[n];
+    const bullets = t.bullets.map(b=>`<li>${b}</li>`).join('');
+    return `<div class="tpref-card" style="border-color:${t.color}">
+      <div class="tpref-num" style="color:${t.color}">${n}</div>
+      <div class="tpref-body">
+        <div class="tpref-title">TP${n} &middot; ${t.title} <span class="tpref-sub">(${t.sub})</span></div>
+        <p class="tpref-desc">${t.desc}</p>
+        <ul class="tpref-list">${bullets}</ul>
+      </div>
+    </div>`;
+  }).join('');
+  const content = `
+    <div class="page-head"><span class="eyebrow">Panduan</span><h1>Rujukan Deskriptor TP</h1></div>
+    <p style="font-size:13px;color:var(--tulisan-lembut);margin-top:-4px;">Panduan tafsiran Tahap Penguasaan (TP) Pendidikan Islam Sekolah Rendah, berdasarkan DSKP.</p>
+    <div class="tpref-grid">${cards}</div>
+    <div class="card" style="margin-top:16px;">
+      <p style="font-size:11.5px;color:var(--tulisan-lembut);margin:0 0 10px;line-height:1.6;"><b style="color:var(--tulisan);">Catatan:</b><br>Pentaksiran dilakukan secara berterusan melalui pemerhatian, lisan dan penulisan. Rujuk DSKP untuk perincian lengkap.</p>
+      <p style="font-size:11.5px;color:var(--tulisan-lembut);margin:0;line-height:1.6;"><b style="color:var(--tulisan);">Sumber:</b><br>Kementerian Pendidikan Malaysia.</p>
+    </div>
+  `;
+  el.innerHTML = appShell('rujukan', content);
+  wireShellNav(navigateShared);
 }
 
 function adminGuruHTML(){
@@ -659,7 +730,7 @@ async function paintGuru(){
     <div class="student-list">${cards || '<div class="empty"><div class="em-ic">🎓</div>Tiada murid dalam kelas ini.</div>'}</div>
   `;
   el.innerHTML = appShell('dash', content);
-  wireShellNav(k=>{ if(k==='murid') paintMurid(); });
+  wireShellNav(navigateShared);
   document.getElementById('guruClassFilter').onchange=(e)=>{VIEW.classFilter=e.target.value; paintGuru();};
   new Chart(document.getElementById('tpDistChart'), {
     type:'bar',
@@ -737,7 +808,7 @@ async function paintProfile(){
     </div>
   `;
   el.innerHTML = appShell('dash', content);
-  wireShellNav(k=>{ if(k==='dash') paintGuru(); else if(k==='murid') paintMurid(); });
+  wireShellNav(navigateShared);
   const p1=s._evidence.filter(e=>e.penggal==='1').length, p2=s._evidence.filter(e=>e.penggal==='2').length;
   const rHigh=s._evidence.filter(e=>e.rating==3).length, rMid=s._evidence.filter(e=>e.rating==2).length, rLow=s._evidence.filter(e=>e.rating==1).length;
   new Chart(document.getElementById('studTPChart'), {

@@ -59,34 +59,31 @@ label{font-size:12px;font-weight:700;color:var(--tulisan-lembut);display:block;m
 
 /* TOP NAVBAR (matches Khatam Tracker style) */
 .topnav{background:var(--hijau);position:sticky;top:0;z-index:50;box-shadow:0 2px 8px rgba(0,0,0,.08);}
-.topnav-inner{max-width:1280px;margin:0 auto;display:flex;align-items:center;gap:18px;padding:12px 20px;flex-wrap:wrap;}
-.tn-brand{display:flex;align-items:center;gap:11px;flex-shrink:0;}
-.tn-logo{width:40px;height:40px;border-radius:11px;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0;}
-.tn-title{font-weight:800;font-size:16px;color:#fff;line-height:1.15;}
-.tn-sub{font-size:11.5px;color:rgba(255,255,255,.75);}
-.tn-tabs{display:flex;gap:4px;overflow-x:auto;flex:1;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
-.tn-tabs::-webkit-scrollbar{display:none;}
-.tn-item{display:flex;align-items:center;gap:7px;white-space:nowrap;padding:9px 14px;border-radius:9px;border:none;background:transparent;color:rgba(255,255,255,.78);font-size:13.5px;font-weight:700;flex-shrink:0;border-bottom:2.5px solid transparent;}
-.tn-item span{font-size:15px;}
+.topnav-row1{max-width:1280px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 20px 8px;}
+.tn-brand{display:flex;align-items:center;gap:9px;min-width:0;}
+.tn-logo{font-size:19px;flex-shrink:0;}
+.tn-title{font-weight:800;font-size:15.5px;color:#fff;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tn-tabs-row{max-width:1280px;margin:0 auto;display:flex;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:0 20px 10px;}
+.tn-tabs-row::-webkit-scrollbar{display:none;}
+.tn-item{display:flex;align-items:center;gap:6px;white-space:nowrap;padding:8px 13px;border-radius:9px;border:none;background:rgba(255,255,255,.08);color:rgba(255,255,255,.8);font-size:13px;font-weight:700;flex-shrink:0;border-bottom:2.5px solid transparent;}
+.tn-item span{font-size:14px;}
 .tn-item:hover{color:#fff;}
-.tn-item.active{color:#fff;border-bottom-color:var(--emas);}
-.tn-right{display:flex;align-items:center;gap:10px;flex-shrink:0;margin-left:auto;}
+.tn-item.active{color:#fff;background:rgba(255,255,255,.18);border-bottom-color:var(--emas);}
+.tn-right{display:flex;align-items:center;gap:10px;flex-shrink:0;}
 .tn-user{background:rgba(255,255,255,.14);color:#fff;font-size:12.5px;font-weight:700;padding:7px 13px;border-radius:20px;white-space:nowrap;}
 .tn-logout{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.3);padding:7px 13px;border-radius:20px;font-size:12.5px;font-weight:700;white-space:nowrap;}
 .tn-logout:hover{background:rgba(255,255,255,.2);}
 .main-area{flex:1;min-width:0;}
 .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 60px;}
 @media(max-width:640px){
-  .topnav-inner{padding:10px 12px;gap:8px;}
-  .tn-sub{display:none;}
-  .tn-title{display:none;}
-  .tn-logo{width:32px;height:32px;font-size:15px;}
+  .topnav-row1{padding:10px 14px 8px;}
   .tn-user{display:none;}
+  .tn-title{font-size:13.5px;}
   .wrap{padding:16px 14px 50px;}
-  .tn-item{padding:8px 9px;font-size:12px;gap:4px;}
+  .tn-tabs-row{padding:0 14px 9px;gap:5px;}
+  .tn-item{padding:7px 10px;font-size:12px;}
   .tn-item span{font-size:13px;}
-  .tn-logout{padding:7px 10px;font-size:11.5px;}
-  .tn-tabs{gap:2px;}
+  .tn-logout{padding:6px 10px;font-size:11.5px;}
 }
 
 /* HEADER / SCHOOL BANNER */
@@ -408,31 +405,29 @@ function appShell(activeKey, innerHTML){
   const navItems = isAdmin ? [
     {key:'guru', label:'Guru', icon:'👤'},
     {key:'murid', label:'Murid', icon:'🎓'},
-    {key:'kelas', label:'Kelas', icon:'🏫'},
+    {key:'rekod', label:'Rekod', icon:'📝'},
     {key:'tajuk', label:'Tajuk', icon:'📚'},
     {key:'rujukan', label:'Rujukan TP', icon:'📖'},
     {key:'log', label:'Log', icon:'🗒️'}
   ] : [
     {key:'dash', label:'Dashboard', icon:'🏠'},
     {key:'murid', label:'Murid', icon:'🎓'},
+    {key:'rekod', label:'Rekod', icon:'📝'},
     {key:'tajuk', label:'Tajuk', icon:'📚'},
     {key:'rujukan', label:'Rujukan TP', icon:'📖'}
   ];
   return `
   <header class="topnav no-print">
-    <div class="topnav-inner">
-      <div class="tn-brand">
-        <div class="tn-logo">📗</div>
-        <div><div class="tn-title">Eviden PBD</div><div class="tn-sub">Panitia Pendidikan Islam</div></div>
-      </div>
-      <nav class="tn-tabs">
-        ${navItems.map(n=>`<button class="tn-item ${activeKey===n.key?'active':''}" data-k="${n.key}"><span>${n.icon}</span>${n.label}</button>`).join('')}
-      </nav>
+    <div class="topnav-row1">
+      <div class="tn-brand"><span class="tn-logo">📗</span><span class="tn-title">Perekodan PBD Pendidikan Islam</span></div>
       <div class="tn-right">
         <span class="tn-user">${SESSION.name}</span>
         <button class="tn-logout" onclick="logout()">Log Keluar</button>
       </div>
     </div>
+    <nav class="tn-tabs-row">
+      ${navItems.map(n=>`<button class="tn-item ${activeKey===n.key?'active':''}" data-k="${n.key}"><span>${n.icon}</span>${n.label}</button>`).join('')}
+    </nav>
   </header>
   <main class="main-area"><div class="wrap">${innerHTML}</div></main>`;
 }
@@ -462,8 +457,9 @@ function tpOf(student){
 /* ============ ADMIN VIEW ============ */
 async function renderAdmin(){
   VIEW.page='admin';
-  if(!VIEW.tab || !['guru','murid','kelas','tajuk','rujukan','log'].includes(VIEW.tab)) VIEW.tab='guru';
+  if(!VIEW.tab || !['guru','murid','rekod','tajuk','rujukan','log'].includes(VIEW.tab)) VIEW.tab='guru';
   if(VIEW.tab==='murid'){ await paintMurid(); return; }
+  if(VIEW.tab==='rekod'){ await paintRekod(); return; }
   if(VIEW.tab==='tajuk'){ await paintTajuk(); return; }
   if(VIEW.tab==='rujukan'){ await paintRujukan(); return; }
   if(VIEW.tab==='log'){ await paintLog(); return; }
@@ -473,8 +469,7 @@ async function paintAdmin(){
   const el = document.getElementById('app');
   let body='';
   if(VIEW.tab==='guru') body = adminGuruHTML();
-  if(VIEW.tab==='kelas') body = adminKelasOnlyHTML();
-  const heading = VIEW.tab==='guru'?'Urus Guru':'Kelas';
+  const heading = 'Urus Guru';
   const content = `
     <div class="page-head"><span class="eyebrow">Panel Pentadbir</span><h1>${heading}</h1></div>
     ${body}`;
@@ -482,11 +477,11 @@ async function paintAdmin(){
   wireShellNav(navigateShared);
 }
 
-/* --- Shared: Murid management (Admin + Guru) --- */
-/* --- Shared nav handler covering Dashboard/Murid/Tajuk/Rujukan/Admin tabs --- */
+/* --- Shared nav handler covering Dashboard/Murid/Rekod/Tajuk/Rujukan/Admin tabs --- */
 function navigateShared(k){
   if(SESSION.role==='admin'){
     if(k==='murid') paintMurid();
+    else if(k==='rekod') paintRekod();
     else if(k==='tajuk') paintTajuk();
     else if(k==='rujukan') paintRujukan();
     else if(k==='log') paintLog();
@@ -495,6 +490,7 @@ function navigateShared(k){
   } else {
     if(k==='dash') paintGuru();
     else if(k==='murid') paintMurid();
+    else if(k==='rekod') paintRekod();
     else if(k==='tajuk') paintTajuk();
     else if(k==='sampah') paintSampah();
     else paintRujukan();
@@ -671,16 +667,14 @@ function adminMuridHTML(){
   const list = DB.students.filter(s=> !s.deleted && (cls==='ALL' || s.class===cls) && (!search || s.name.toLowerCase().includes(search)));
   const rows = list.map((s)=>{
     const idx = DB.students.indexOf(s);
-    const tp = tpOf(s);
-    const verified = !!DB.verifiedAll[s.id];
     return `<tr><td><div class="trow"><div class="mini-avatar">${initials(s.name)}</div><b>${s.name}</b></div></td><td>${s.class}</td>
-    <td><span class="pill tp${tp}">TP${tp}</span></td>
-    <td>${verified?'✅':'⏳'}</td>
-    <td class="row-actions"><button class="btn ghost" onclick="openStudent('${s.id}')">Lihat</button><button class="btn ghost" onclick="editStudent(${idx})">Edit</button>
+    <td><span class="pill" style="background:#E4F0E6;color:var(--hijau-ok);">🟢 Aktif</span></td>
+    <td class="row-actions"><button class="btn ghost" onclick="editStudent(${idx})">Edit</button>
     <button class="btn danger" onclick="deleteStudent(${idx})">Padam</button></td></tr>`;
   }).join('');
   const opts = ['ALL',...DB.meta.classes].map(c=>`<option value="${c}" ${c===cls?'selected':''}>${c==='ALL'?'Semua Kelas':c}</option>`).join('');
   const trashCount = DB.students.filter(s=>s.deleted).length;
+  const clsRows = DB.meta.classes.map((c,i)=>`<span class="pill tp5" style="margin:4px 6px 0 0;display:inline-flex;align-items:center;gap:6px;">${c} <span style="cursor:pointer;color:var(--merah);font-weight:900;" onclick="removeClass(${i})">&times;</span></span>`).join('');
   return `
   <div class="card">
     <div class="section-head" style="margin-top:0;"><h2>Senarai Murid (${list.length})</h2>
@@ -688,26 +682,64 @@ function adminMuridHTML(){
     <div class="toolbar">
       <select id="muridClassFilter">${opts}</select>
       <input id="muridSearch" placeholder="🔍 Cari nama murid…" value="${VIEW.searchTerm||''}" style="min-width:180px;">
-    </div>
-    <div class="toolbar">
-      <button class="btn ghost" onclick="openBulkUploadModal()">📤 Upload Pukal</button>
-      <button class="btn ghost" onclick="exportStudentsCSV()">⬇ Eksport CSV</button>
-      <button class="btn ghost" onclick="printClassReport()">🖨 Laporan Kelas</button>
-      <button class="btn ghost" onclick="printSchoolReport()">🏫 Laporan Tahunan</button>
       <button class="btn ghost" onclick="navigateShared('sampah')">🗑️ Tong Sampah ${trashCount>0?'('+trashCount+')':''}</button>
     </div>
-    <div class="table-scroll"><table><thead><tr><th>Nama</th><th>Kelas</th><th>TP</th><th>Sah</th><th></th></tr></thead>
-    <tbody>${rows || '<tr><td colspan="5"><div class="empty"><div class="em-ic">🎓</div>Tiada murid dalam kelas ini.</div></td></tr>'}</tbody></table></div>
-  </div>`;
-}
-
-function adminKelasOnlyHTML(){
-  const clsRows = DB.meta.classes.map((c,i)=>`<span class="pill tp5" style="margin:4px 6px 0 0;display:inline-flex;align-items:center;gap:6px;">${c} <span style="cursor:pointer;color:var(--merah);font-weight:900;" onclick="removeClass(${i})">&times;</span></span>`).join('');
-  return `
-  <div class="card">
+    <div class="table-scroll"><table><thead><tr><th>Nama</th><th>Kelas</th><th>Status</th><th></th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="4"><div class="empty"><div class="em-ic">🎓</div>Tiada murid dalam kelas ini.</div></td></tr>'}</tbody></table></div>
+  </div>
+  <div class="card" style="margin-top:16px;">
     <h2 style="margin-top:0;">Kelas (${DB.meta.classes.length})</h2>
     <div class="toolbar"><input id="newClass" placeholder="cth: Tahun 5A"><button class="btn gold" onclick="addClass()">Tambah</button></div>
     <div style="margin-top:10px;">${clsRows || '<div class="empty"><div class="em-ic">🏫</div>Tiada kelas lagi.</div>'}</div>
+  </div>`;
+}
+
+/* --- Shared: Rekod (TP, eviden, laporan) --- */
+async function paintRekod(){
+  VIEW.tab='rekod';
+  const el = document.getElementById('app');
+  const content = `
+    <div class="page-head"><span class="eyebrow">${SESSION.role==='admin'?'Panel Pentadbir':'Dashboard Guru'}</span><h1>Rekod TP &amp; Eviden</h1></div>
+    ${adminRekodHTML()}`;
+  el.innerHTML = appShell('rekod', content);
+  wireShellNav(navigateShared);
+  const f = document.getElementById('rekodClassFilter');
+  if(f) f.onchange=()=>{VIEW.classFilter=f.value; paintRekod();};
+  const sInput = document.getElementById('rekodSearch');
+  if(sInput){
+    sInput.oninput=()=>{VIEW.searchTerm=sInput.value; VIEW._focusSearch=true; paintRekod();};
+    if(VIEW._focusSearch){ sInput.focus(); const p=sInput.value.length; sInput.setSelectionRange(p,p); }
+  }
+  VIEW._focusSearch=false;
+}
+function adminRekodHTML(){
+  const cls = VIEW.classFilter;
+  const search = (VIEW.searchTerm||'').toLowerCase().trim();
+  const list = DB.students.filter(s=> !s.deleted && (cls==='ALL' || s.class===cls) && (!search || s.name.toLowerCase().includes(search)));
+  const rows = list.map((s)=>{
+    const tp = tpOf(s);
+    const verified = !!DB.verifiedAll[s.id];
+    const evCount = (DB.evidenceAll[s.id]||[]).filter(e=>!e.deleted).length;
+    return `<tr><td><div class="trow"><div class="mini-avatar">${initials(s.name)}</div><b>${s.name}</b></div></td><td>${s.class}</td>
+    <td><span class="pill tp${tp}">TP${tp}</span></td><td>${evCount}</td>
+    <td>${verified?'✅':'⏳'}</td>
+    <td class="row-actions"><button class="btn ghost" onclick="openStudent('${s.id}')">Lihat</button></td></tr>`;
+  }).join('');
+  const opts = ['ALL',...DB.meta.classes].map(c=>`<option value="${c}" ${c===cls?'selected':''}>${c==='ALL'?'Semua Kelas':c}</option>`).join('');
+  return `
+  <div class="card">
+    <div class="toolbar" style="margin-top:0;">
+      <button class="btn gold" onclick="openBulkUploadModal()">📤 Upload Pukal</button>
+      <button class="btn ghost" onclick="exportStudentsCSV()">⬇ Eksport CSV</button>
+      <button class="btn ghost" onclick="printClassReport()">🖨 Laporan Kelas</button>
+      <button class="btn ghost" onclick="printSchoolReport()">🏫 Laporan Tahunan</button>
+    </div>
+    <div class="toolbar">
+      <select id="rekodClassFilter">${opts}</select>
+      <input id="rekodSearch" placeholder="🔍 Cari nama murid…" value="${VIEW.searchTerm||''}" style="min-width:180px;">
+    </div>
+    <div class="table-scroll"><table><thead><tr><th>Nama</th><th>Kelas</th><th>TP</th><th>Eviden</th><th>Sah</th><th></th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="6"><div class="empty"><div class="em-ic">📝</div>Tiada murid dalam kelas ini.</div></td></tr>'}</tbody></table></div>
   </div>`;
 }
 
@@ -843,13 +875,13 @@ async function addClass(){
   DB.meta.classes.push(v);
   const ok = await sSet('meta', DB.meta);
   if(ok===null){ DB.meta.classes.pop(); toast('Gagal simpan. Cuba lagi.', true); return; }
-  logActivity('Tambah Kelas', v); paintAdmin();
+  logActivity('Tambah Kelas', v); paintMurid();
 }
 async function removeClass(i){
   const removed = DB.meta.classes.splice(i,1)[0];
   const ok = await sSet('meta', DB.meta);
   if(ok===null){ DB.meta.classes.splice(i,0,removed); toast('Gagal padam. Cuba lagi.', true); return; }
-  logActivity('Padam Kelas', removed); paintAdmin();
+  logActivity('Padam Kelas', removed); paintMurid();
 }
 
 /* ============ GURU DASHBOARD ============ */
@@ -884,8 +916,16 @@ async function paintGuru(){
   }).join('');
   const avgTP = (tpCounts.reduce((s,c,i)=>s+c*(i+1),0)/Math.max(1,activeStudents.length)).toFixed(1);
   const noEvidence = activeStudents.filter(s=> s._evidence.length===0);
-  const notifRows = noEvidence.slice(0,6).map(s=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;font-size:13px;"><span style="width:7px;height:7px;border-radius:50%;background:var(--merah);flex-shrink:0;"></span><b>${s.name.toUpperCase()}</b><span style="color:var(--tulisan-lembut);">— belum ada eviden</span></div>`).join('');
-  const notifMore = noEvidence.length>6 ? `<div style="font-size:12px;color:var(--tulisan-lembut);margin-top:4px;">+${noEvidence.length-6} murid lagi</div>` : '';
+  const notifRows = noEvidence.slice(0,6).map(s=>`
+    <div class="ev-item" style="padding:9px 0;">
+      <div class="sc-avatar" style="width:34px;height:34px;font-size:11px;">${initials(s.name)}</div>
+      <div class="ev-info">
+        <div class="t" style="font-size:13px;">${s.name}</div>
+        <div class="d">${s.class}</div>
+      </div>
+      <span class="pill" style="background:#FBEAE6;color:var(--merah);flex-shrink:0;">Belum ada eviden</span>
+    </div>`).join('');
+  const notifMore = noEvidence.length>6 ? `<div style="font-size:12px;color:var(--tulisan-lembut);text-align:center;padding-top:8px;">+${noEvidence.length-6} murid lagi</div>` : '';
   const classNames = DB.meta.classes;
   const classAvgs = classNames.map(c=>{
     const studs = activeStudents.filter(s=>s.class===c);
@@ -1000,7 +1040,7 @@ async function paintProfile(){
       <button class="btn danger" style="padding:5px 10px;font-size:12px;" onclick="deleteAnecdote('${a.id}')">Padam</button></div>`).join('') || '<div class="empty" style="padding:16px;"><div class="em-ic">📝</div>Tiada anekdot direkod.</div>';
 
   const content = `
-    <div class="no-print"><button class="btn ghost" onclick="${isAdminView?'paintMurid()':'paintGuru()'}">&larr; Kembali ke Senarai</button></div>
+    <div class="no-print"><button class="btn ghost" onclick="${isAdminView?'paintRekod()':'paintGuru()'}">&larr; Kembali ke Senarai</button></div>
     <div class="profile-banner" style="margin-top:16px;">
       <div class="profile-head">
         <div class="profile-id">
@@ -1042,7 +1082,7 @@ async function paintProfile(){
       </div>
     </div>
   `;
-  el.innerHTML = appShell(isAdminView?'murid':'dash', content);
+  el.innerHTML = appShell(isAdminView?'rekod':'dash', content);
   wireShellNav(navigateShared);
   const p1=s._evidence.filter(e=>e.penggal==='1').length, p2=s._evidence.filter(e=>e.penggal==='2').length;
   const rHigh=s._evidence.filter(e=>e.rating==3).length, rMid=s._evidence.filter(e=>e.rating==2).length, rLow=s._evidence.filter(e=>e.rating==1).length;
@@ -1184,7 +1224,7 @@ async function saveBulkEvidence(){
     for(const id of checked){ await unverify(id); }
     closeModal(); toast('Eviden pukal disimpan untuk '+checked.length+' murid.');
     logActivity('Upload Eviden Pukal', cls+' — '+topic+' ('+checked.length+' murid)');
-    paintMurid();
+    paintRekod();
   };
   reader.readAsDataURL(processed);
 }

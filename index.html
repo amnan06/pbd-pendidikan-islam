@@ -456,7 +456,7 @@ function calcTP(evList){
 function tpOf(student){
   const ov = DB.overridesAll[student.id];
   if(ov!=null) return ov;
-  return calcTP(DB.evidenceAll[student.id]||[]);
+  return calcTP((DB.evidenceAll[student.id]||[]).filter(e=>!e.deleted));
 }
 
 /* ============ ADMIN VIEW ============ */
@@ -490,13 +490,39 @@ function navigateShared(k){
     else if(k==='tajuk') paintTajuk();
     else if(k==='rujukan') paintRujukan();
     else if(k==='log') paintLog();
+    else if(k==='sampah') paintSampah();
     else { VIEW.tab=k; paintAdmin(); }
   } else {
     if(k==='dash') paintGuru();
     else if(k==='murid') paintMurid();
     else if(k==='tajuk') paintTajuk();
+    else if(k==='sampah') paintSampah();
     else paintRujukan();
   }
+}
+
+async function paintSampah(){
+  VIEW.tab='sampah';
+  const el = document.getElementById('app');
+  const trashed = DB.students.filter(s=>s.deleted);
+  const rows = trashed.map(s=>{
+    const d = new Date(s.deletedAt);
+    const dstr = isNaN(d) ? '' : d.toLocaleDateString('ms-MY');
+    return `<tr><td><div class="trow"><div class="mini-avatar">${initials(s.name)}</div><b>${s.name}</b></div></td><td>${s.class}</td><td style="font-size:12px;color:var(--tulisan-lembut);">${dstr}</td>
+    <td class="row-actions"><button class="btn ghost" onclick="restoreStudent('${s.id}')">♻ Pulihkan</button>
+    <button class="btn danger" onclick="permanentDeleteStudent('${s.id}')">Padam Kekal</button></td></tr>`;
+  }).join('');
+  const content = `
+    <div class="page-head"><span class="eyebrow">${SESSION.role==='admin'?'Panel Pentadbir':'Dashboard Guru'}</span><h1>Tong Sampah</h1></div>
+    <p style="font-size:12.5px;color:var(--tulisan-lembut);margin-top:-4px;">Murid yang dipadam disimpan di sini. Boleh dipulihkan bila-bila masa, atau padam kekal jika sudah pasti.</p>
+    <div class="card">
+      <div class="table-scroll"><table><thead><tr><th>Nama</th><th>Kelas</th><th>Tarikh Padam</th><th></th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="4"><div class="empty"><div class="em-ic">🗑️</div>Tong sampah kosong.</div></td></tr>'}</tbody></table></div>
+    </div>
+    <div class="no-print" style="margin-top:14px;"><button class="btn ghost" onclick="navigateShared('murid')">&larr; Kembali ke Senarai Murid</button></div>
+  `;
+  el.innerHTML = appShell('murid', content);
+  wireShellNav(navigateShared);
 }
 
 async function paintTajuk(){
@@ -519,6 +545,12 @@ async function paintMurid(){
   wireShellNav(navigateShared);
   const f = document.getElementById('muridClassFilter');
   if(f) f.onchange=()=>{VIEW.classFilter=f.value; paintMurid();};
+  const sInput = document.getElementById('muridSearch');
+  if(sInput){
+    sInput.oninput=()=>{VIEW.searchTerm=sInput.value; VIEW._focusSearch=true; paintMurid();};
+    if(VIEW._focusSearch){ sInput.focus(); const p=sInput.value.length; sInput.setSelectionRange(p,p); }
+  }
+  VIEW._focusSearch=false;
 }
 
 async function paintRujukan(){
@@ -558,8 +590,18 @@ async function paintLog(){
     return `<tr><td style="white-space:nowrap;font-size:12px;color:var(--tulisan-lembut);">${dstr}</td><td><b>${l.user}</b></td><td>${l.action}</td><td style="font-size:12.5px;color:var(--tulisan-lembut);">${l.detail||''}</td></tr>`;
   }).join('');
   const content = `
-    <div class="page-head"><span class="eyebrow">Panel Pentadbir</span><h1>Log Aktiviti</h1></div>
-    <p style="font-size:12.5px;color:var(--tulisan-lembut);margin-top:-4px;">Jejak audit — siapa buat perubahan, bila. Memaparkan 100 rekod terkini.</p>
+    <div class="page-head"><span class="eyebrow">Panel Pentadbir</span><h1>Log Aktiviti &amp; Backup</h1></div>
+    <div class="card">
+      <h2 style="margin-top:0;">💾 Backup &amp; Import Data</h2>
+      <p style="font-size:12.5px;color:var(--tulisan-lembut);margin-top:-4px;">Simpan salinan penuh semua data (murid, eviden, catatan, dll) sebagai fail JSON. Guna Import jika perlu pulihkan data.</p>
+      <div class="toolbar">
+        <button class="btn gold" onclick="downloadBackup()">⬇ Muat Turun Backup Penuh</button>
+        <button class="btn ghost" onclick="document.getElementById('importFileInput').click()">⬆ Import Backup</button>
+        <input type="file" id="importFileInput" accept="application/json" style="display:none" onchange="importBackup(this.files[0])">
+      </div>
+    </div>
+    <div class="section-head"><h2>Jejak Audit</h2></div>
+    <p style="font-size:12.5px;color:var(--tulisan-lembut);margin-top:-4px;">Siapa buat perubahan, bila. Memaparkan 100 rekod terkini.</p>
     <div class="card">
       <div class="table-scroll"><table><thead><tr><th>Masa</th><th>Pengguna</th><th>Tindakan</th><th>Perincian</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="4"><div class="empty"><div class="em-ic">🗒️</div>Tiada aktiviti direkod lagi.</div></td></tr>'}</tbody></table></div>
@@ -567,6 +609,44 @@ async function paintLog(){
   `;
   el.innerHTML = appShell('log', content);
   wireShellNav(navigateShared);
+}
+
+function downloadBackup(){
+  const backup = {
+    exportedAt: new Date().toISOString(),
+    meta: DB.meta, students: DB.students, evidenceAll: DB.evidenceAll,
+    notesAll: DB.notesAll, overridesAll: DB.overridesAll, verifiedAll: DB.verifiedAll,
+    anecdotesAll: DB.anecdotesAll, activityLog: DB.activityLog
+  };
+  const blob = new Blob([JSON.stringify(backup,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'backup-eviden-pbd-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  logActivity('Muat Turun Backup', '');
+}
+async function importBackup(file){
+  if(!file) return;
+  if(!confirm('Import akan GANTIKAN semua data semasa (murid, eviden, catatan, dll) dengan data dari fail backup ini. Teruskan?')) return;
+  try{
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if(!data.meta || !data.students){ toast('Fail backup tidak sah.', true); return; }
+    toast('Mengimport data...');
+    await Promise.all([
+      sSet('meta', data.meta), sSet('students', data.students), sSet('evidenceAll', data.evidenceAll||{}),
+      sSet('notesAll', data.notesAll||{}), sSet('overridesAll', data.overridesAll||{}),
+      sSet('verifiedAll', data.verifiedAll||{}), sSet('anecdotesAll', data.anecdotesAll||{}),
+      sSet('activityLog', data.activityLog||[])
+    ]);
+    DB.meta = data.meta; DB.students = data.students; DB.evidenceAll = data.evidenceAll||{};
+    DB.notesAll = data.notesAll||{}; DB.overridesAll = data.overridesAll||{}; DB.verifiedAll = data.verifiedAll||{};
+    DB.anecdotesAll = data.anecdotesAll||{}; DB.activityLog = data.activityLog||[];
+    toast('Import berjaya.'); logActivity('Import Backup', file.name); paintLog();
+  }catch(e){
+    toast('Gagal membaca fail backup.', true);
+  }
 }
 
 function adminGuruHTML(){
@@ -587,7 +667,8 @@ function adminGuruHTML(){
 
 function adminMuridHTML(){
   const cls = VIEW.classFilter;
-  const list = DB.students.filter(s=> cls==='ALL' || s.class===cls);
+  const search = (VIEW.searchTerm||'').toLowerCase().trim();
+  const list = DB.students.filter(s=> !s.deleted && (cls==='ALL' || s.class===cls) && (!search || s.name.toLowerCase().includes(search)));
   const rows = list.map((s)=>{
     const idx = DB.students.indexOf(s);
     const tp = tpOf(s);
@@ -599,14 +680,21 @@ function adminMuridHTML(){
     <button class="btn danger" onclick="deleteStudent(${idx})">Padam</button></td></tr>`;
   }).join('');
   const opts = ['ALL',...DB.meta.classes].map(c=>`<option value="${c}" ${c===cls?'selected':''}>${c==='ALL'?'Semua Kelas':c}</option>`).join('');
+  const trashCount = DB.students.filter(s=>s.deleted).length;
   return `
   <div class="card">
     <div class="section-head" style="margin-top:0;"><h2>Senarai Murid (${list.length})</h2>
       <button class="btn gold" onclick="openStudentModal()">+ Tambah Murid</button></div>
     <div class="toolbar">
       <select id="muridClassFilter">${opts}</select>
+      <input id="muridSearch" placeholder="🔍 Cari nama murid…" value="${VIEW.searchTerm||''}" style="min-width:180px;">
+    </div>
+    <div class="toolbar">
+      <button class="btn ghost" onclick="openBulkUploadModal()">📤 Upload Pukal</button>
       <button class="btn ghost" onclick="exportStudentsCSV()">⬇ Eksport CSV</button>
-      <button class="btn ghost" onclick="printClassReport()">🖨 Cetak Laporan Kelas</button>
+      <button class="btn ghost" onclick="printClassReport()">🖨 Laporan Kelas</button>
+      <button class="btn ghost" onclick="printSchoolReport()">🏫 Laporan Tahunan</button>
+      <button class="btn ghost" onclick="navigateShared('sampah')">🗑️ Tong Sampah ${trashCount>0?'('+trashCount+')':''}</button>
     </div>
     <div class="table-scroll"><table><thead><tr><th>Nama</th><th>Kelas</th><th>TP</th><th>Sah</th><th></th></tr></thead>
     <tbody>${rows || '<tr><td colspan="5"><div class="empty"><div class="em-ic">🎓</div>Tiada murid dalam kelas ini.</div></td></tr>'}</tbody></table></div>
@@ -704,14 +792,32 @@ async function saveStudent(editIdx){
   closeModal(); toast('Murid disimpan.'); logActivity('Simpan Murid', name+' - '+cls); paintMurid();
 }
 async function deleteStudent(i){
-  if(!confirm('Padam murid ini? Eviden berkaitan turut dipadam.')) return;
-  const removed = DB.students.splice(i,1)[0];
+  if(!confirm('Padam murid ini? Rekod boleh dipulihkan dari Tong Sampah.')) return;
+  const s = DB.students[i];
+  s.deleted = true; s.deletedAt = new Date().toISOString();
   const ok = await sSet('students', DB.students);
-  if(ok===null){ DB.students.splice(i,0,removed); toast('Gagal padam. Cuba lagi.', true); return; }
+  if(ok===null){ delete s.deleted; delete s.deletedAt; toast('Gagal padam. Cuba lagi.', true); return; }
+  toast('Murid dipindah ke Tong Sampah.'); logActivity('Padam Murid (Tong Sampah)', s.name+' - '+s.class); paintMurid();
+}
+async function restoreStudent(id){
+  const s = DB.students.find(x=>x.id===id);
+  if(!s) return;
+  delete s.deleted; delete s.deletedAt;
+  const ok = await sSet('students', DB.students);
+  if(ok===null){ s.deleted=true; toast('Gagal pulihkan. Cuba lagi.', true); return; }
+  toast('Murid dipulihkan.'); logActivity('Pulihkan Murid', s.name); paintSampah();
+}
+async function permanentDeleteStudent(id){
+  if(!confirm('Padam KEKAL murid ini beserta semua eviden/catatan? Tindakan ini TIDAK boleh dibatalkan.')) return;
+  const idx = DB.students.findIndex(x=>x.id===id);
+  if(idx===-1) return;
+  const removed = DB.students.splice(idx,1)[0];
+  const ok = await sSet('students', DB.students);
+  if(ok===null){ DB.students.splice(idx,0,removed); toast('Gagal padam. Cuba lagi.', true); return; }
   delete DB.evidenceAll[removed.id]; delete DB.notesAll[removed.id]; delete DB.overridesAll[removed.id];
   delete DB.verifiedAll[removed.id]; delete DB.anecdotesAll[removed.id];
   await Promise.all([sSet('evidenceAll', DB.evidenceAll), sSet('notesAll', DB.notesAll), sSet('overridesAll', DB.overridesAll), sSet('verifiedAll', DB.verifiedAll), sSet('anecdotesAll', DB.anecdotesAll)]);
-  toast('Murid dipadam.'); logActivity('Padam Murid', removed.name+' - '+removed.class); paintMurid();
+  toast('Murid dipadam kekal.'); logActivity('Padam Kekal Murid', removed.name+' - '+removed.class); paintSampah();
 }
 
 /* --- Admin: class/topic --- */
@@ -755,13 +861,14 @@ async function paintGuru(){
   VIEW.page='guru'; VIEW.tab='dash';
   const el = document.getElementById('app');
   const cls = VIEW.classFilter;
-  DB.students.forEach(s=>{
-    s._evidence = DB.evidenceAll[s.id] || [];
+  const activeStudents = DB.students.filter(s=>!s.deleted);
+  activeStudents.forEach(s=>{
+    s._evidence = (DB.evidenceAll[s.id] || []).filter(e=>!e.deleted);
     s._override = (DB.overridesAll[s.id]!=null) ? DB.overridesAll[s.id] : null;
   });
   const tpCounts=[0,0,0,0,0,0];
-  DB.students.forEach(s=> tpCounts[tpOf(s)-1]++);
-  const list = DB.students.filter(s=> cls==='ALL' || s.class===cls);
+  activeStudents.forEach(s=> tpCounts[tpOf(s)-1]++);
+  const list = activeStudents.filter(s=> cls==='ALL' || s.class===cls);
   const opts = ['ALL',...DB.meta.classes].map(c=>`<option value="${c}" ${c===cls?'selected':''}>${c==='ALL'?'Semua Kelas':c}</option>`).join('');
   const cards = list.map(s=>{
     const tp = tpOf(s);
@@ -775,16 +882,17 @@ async function paintGuru(){
       <div class="sc-bar-track"><div class="sc-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
     </div>`;
   }).join('');
-  const avgTP = (tpCounts.reduce((s,c,i)=>s+c*(i+1),0)/Math.max(1,DB.students.length)).toFixed(1);
-  const noEvidence = DB.students.filter(s=> s._evidence.length===0);
+  const avgTP = (tpCounts.reduce((s,c,i)=>s+c*(i+1),0)/Math.max(1,activeStudents.length)).toFixed(1);
+  const noEvidence = activeStudents.filter(s=> s._evidence.length===0);
   const notifRows = noEvidence.slice(0,6).map(s=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;font-size:13px;"><span style="width:7px;height:7px;border-radius:50%;background:var(--merah);flex-shrink:0;"></span><b>${s.name.toUpperCase()}</b><span style="color:var(--tulisan-lembut);">— belum ada eviden</span></div>`).join('');
   const notifMore = noEvidence.length>6 ? `<div style="font-size:12px;color:var(--tulisan-lembut);margin-top:4px;">+${noEvidence.length-6} murid lagi</div>` : '';
   const classNames = DB.meta.classes;
   const classAvgs = classNames.map(c=>{
-    const studs = DB.students.filter(s=>s.class===c);
+    const studs = activeStudents.filter(s=>s.class===c);
     if(studs.length===0) return 0;
     return +(studs.reduce((sum,s)=>sum+tpOf(s),0)/studs.length).toFixed(2);
   });
+  const pg = penggalCountdown();
 
   const content = `
     <div class="school-banner">
@@ -792,10 +900,14 @@ async function paintGuru(){
       <div><div class="sb-name">SJK(C) Ladang Grisek</div><div class="sb-meta">Kod: JBC1049 &middot; Panitia Pendidikan Islam &middot; Sesi ${new Date().getFullYear()}</div></div>
     </div>
     <div class="grid-cards">
-      <div class="stat-card"><span class="ic">🎓</span><div class="n">${DB.students.length}</div><div class="l">Jumlah Murid</div></div>
+      <div class="stat-card"><span class="ic">🎓</span><div class="n">${activeStudents.length}</div><div class="l">Jumlah Murid</div></div>
       <div class="stat-card"><span class="ic">🏫</span><div class="n">${DB.meta.classes.length}</div><div class="l">Kelas</div></div>
-      <div class="stat-card"><span class="ic">📎</span><div class="n">${Object.values(DB.evidenceAll).reduce((a,e)=>a+e.length,0)}</div><div class="l">Jumlah Eviden</div></div>
+      <div class="stat-card"><span class="ic">📎</span><div class="n">${activeStudents.reduce((a,s)=>a+s._evidence.length,0)}</div><div class="l">Jumlah Eviden</div></div>
       <div class="stat-card"><span class="ic">⭐</span><div class="n">${avgTP}</div><div class="l">Purata TP</div></div>
+    </div>
+    <div class="card" style="margin-top:12px;background:linear-gradient(120deg,var(--emas-l),#fff);border:1px solid var(--emas);display:flex;align-items:center;gap:12px;">
+      <span style="font-size:24px;">⏳</span>
+      <div><b style="color:var(--hijau-gelap);">${pg.days} hari lagi</b><span style="color:var(--tulisan-lembut);"> sebelum ${pg.label} tamat (${pg.endLabel})</span></div>
     </div>
     <div class="two-col" style="margin-top:20px;">
       <div class="card">
@@ -830,6 +942,16 @@ async function paintGuru(){
     options:{plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true, max:6}}}
   });
 }
+function penggalCountdown(){
+  const now = new Date();
+  const y = now.getFullYear();
+  const p1End = new Date(y,5,30,23,59,59);
+  const p2End = new Date(y,11,31,23,59,59);
+  const isP1 = now <= p1End;
+  const end = isP1 ? p1End : p2End;
+  const days = Math.max(0, Math.ceil((end-now)/(1000*60*60*24)));
+  return { label: isP1?'Penggal 1':'Penggal 2', days, endLabel: isP1?'30 Jun':'31 Disember' };
+}
 
 /* ============ STUDENT PROFILE ============ */
 async function openStudent(id){
@@ -840,7 +962,9 @@ async function paintProfile(){
   const el = document.getElementById('app');
   const s = DB.students.find(x=>x.id===VIEW.studentId);
   if(!s){ paintGuru(); return; }
-  s._evidence = DB.evidenceAll[s.id] || [];
+  const allEv = DB.evidenceAll[s.id] || [];
+  s._evidence = allEv.filter(e=>!e.deleted);
+  const trashedEv = allEv.filter(e=>e.deleted);
   s._override = (DB.overridesAll[s.id]!=null) ? DB.overridesAll[s.id] : null;
   const notes = DB.notesAll[s.id] || {p:'',k:'',c:''};
   const anecdotes = (DB.anecdotesAll[s.id]||[]).slice().sort((a,b)=> a.date<b.date?1:-1);
@@ -865,6 +989,13 @@ async function paintProfile(){
       </div>
     </div>`;
   }).join('') || '<div class="empty"><div class="em-ic">📎</div>Belum ada eviden dimuat naik.</div>';
+  const trashRows = trashedEv.map(ev=>`<div class="ev-item" style="opacity:.6;">
+      <div class="ev-info"><div class="t">${ev.topic}</div><div class="d">Penggal ${ev.penggal} &middot; ${ev.date}</div></div>
+      <div class="row-actions">
+        <button class="btn ghost" style="padding:5px 10px;font-size:12px;" onclick="restoreEvidence('${ev.id}')">♻ Pulihkan</button>
+        <button class="btn danger" style="padding:5px 10px;font-size:12px;" onclick="permanentDeleteEvidence('${ev.id}')">Kekal</button>
+      </div>
+    </div>`).join('');
   const ancRows = anecdotes.map(a=>`<div class="ev-item" style="padding:9px 0;"><div class="ev-info"><div class="d" style="margin-bottom:2px;">${a.date}</div><div style="font-size:13px;">${a.text}</div></div>
       <button class="btn danger" style="padding:5px 10px;font-size:12px;" onclick="deleteAnecdote('${a.id}')">Padam</button></div>`).join('') || '<div class="empty" style="padding:16px;"><div class="em-ic">📝</div>Tiada anekdot direkod.</div>';
 
@@ -895,6 +1026,7 @@ async function paintProfile(){
       <div class="card">
         <h2 style="margin-top:0;">Senarai Eviden</h2>
         <div>${evRows}</div>
+        ${trashedEv.length>0 ? `<div class="section-head" style="margin-top:18px;"><h2 style="font-size:14px;">🗑️ Tong Sampah Eviden (${trashedEv.length})</h2></div><div>${trashRows}</div>` : ''}
       </div>
       <div class="card">
         <h2 style="margin-top:0;">Taburan Penilaian</h2>
@@ -963,6 +1095,100 @@ function updatePenggalHint(){
   const p = penggalFromDate(dateEl.value);
   hintEl.textContent = p==='1' ? 'Penggal 1 (1 Januari – 30 Jun)' : 'Penggal 2 (1 Julai – 31 Disember)';
 }
+function compressImage(file, maxDim, quality){
+  maxDim = maxDim||1280; quality = quality||0.72;
+  return new Promise((resolve)=>{
+    if(!file.type || !file.type.startsWith('image/')){ resolve(file); return; }
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let w = img.width, h = img.height;
+        if(w>maxDim || h>maxDim){ const scale = maxDim/Math.max(w,h); w=Math.round(w*scale); h=Math.round(h*scale); }
+        const canvas = document.createElement('canvas');
+        canvas.width=w; canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        canvas.toBlob((blob)=>{ resolve(blob || file); }, 'image/jpeg', quality);
+      };
+      img.onerror = ()=>resolve(file);
+      img.src = reader.result;
+    };
+    reader.onerror = ()=>resolve(file);
+    reader.readAsDataURL(file);
+  });
+}
+function openBulkUploadModal(){
+  const initialClass = (VIEW.classFilter && VIEW.classFilter!=='ALL') ? VIEW.classFilter : (DB.meta.classes[0]||'');
+  const classOpts = DB.meta.classes.map(c=>`<option value="${c}" ${c===initialClass?'selected':''}>${c}</option>`).join('');
+  showModal(`
+    <h3>Upload Eviden Pukal</h3>
+    <p style="font-size:12.5px;color:var(--tulisan-lembut);margin-top:-6px;">Satu fail untuk beberapa murid sekaligus (cth: gambar aktiviti kelas).</p>
+    <div class="field"><label>Kelas</label><select id="bulkClass" onchange="renderBulkStudents()">${classOpts}</select></div>
+    <div class="field"><label>Tajuk Eviden</label><select id="bulkTopic"></select></div>
+    <div class="field"><label>Tarikh</label><input type="date" id="bulkDate" value="${new Date().toISOString().slice(0,10)}" onchange="updateBulkPenggalHint()"></div>
+    <div class="field"><label>Penggal (automatik)</label><div id="bulkPenggalHint" style="padding:10px 12px;background:var(--krim);border-radius:9px;font-size:13px;font-weight:700;color:var(--hijau-gelap);"></div></div>
+    <div class="field"><label>Tahap Eviden</label><select id="bulkRating"><option value="3">Tinggi</option><option value="2" selected>Sederhana</option><option value="1">Rendah</option></select></div>
+    <div class="field"><label>Fail (satu fail untuk semua murid dipilih)</label><input type="file" id="bulkFile" accept="image/jpeg,image/png,application/pdf"></div>
+    <div class="field"><label>Pilih Murid</label><div id="bulkStudentList" style="max-height:180px;overflow-y:auto;border:1.5px solid var(--garis);border-radius:9px;padding:8px;"></div></div>
+    <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Batal</button>
+    <button class="btn" id="bulkSaveBtn" onclick="saveBulkEvidence()">Simpan untuk Murid Dipilih</button></div>
+  `);
+  renderBulkStudents();
+  updateBulkPenggalHint();
+}
+function renderBulkStudents(){
+  const cls = document.getElementById('bulkClass').value;
+  const year = yearOfClass(cls);
+  const topics = DB.meta.topics[year] || [];
+  const topicSel = document.getElementById('bulkTopic');
+  topicSel.innerHTML = topics.map(t=>`<option value="${t}">${t}</option>`).join('') || `<option value="">-- Tiada tajuk untuk Tahun ${year} --</option>`;
+  const students = DB.students.filter(s=>!s.deleted && s.class===cls);
+  const listEl = document.getElementById('bulkStudentList');
+  listEl.innerHTML = students.map(s=>`<label style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;"><input type="checkbox" class="bulkStudentChk" value="${s.id}" checked> ${s.name}</label>`).join('') || '<div style="font-size:12.5px;color:var(--tulisan-lembut);">Tiada murid dalam kelas ini.</div>';
+}
+function updateBulkPenggalHint(){
+  const dateEl = document.getElementById('bulkDate');
+  const hintEl = document.getElementById('bulkPenggalHint');
+  if(!dateEl || !hintEl) return;
+  const p = penggalFromDate(dateEl.value);
+  hintEl.textContent = p==='1' ? 'Penggal 1 (1 Januari – 30 Jun)' : 'Penggal 2 (1 Julai – 31 Disember)';
+}
+async function saveBulkEvidence(){
+  const cls = document.getElementById('bulkClass').value;
+  const topic = document.getElementById('bulkTopic').value;
+  const date = document.getElementById('bulkDate').value;
+  const penggal = penggalFromDate(date);
+  const rating = document.getElementById('bulkRating').value;
+  const fileInput = document.getElementById('bulkFile');
+  const saveBtn = document.getElementById('bulkSaveBtn');
+  const checked = Array.from(document.querySelectorAll('.bulkStudentChk:checked')).map(c=>c.value);
+  if(!topic){ toast('Tiada tajuk dipilih untuk kelas ini.', true); return; }
+  if(checked.length===0){ toast('Sila pilih sekurang-kurangnya seorang murid.', true); return; }
+  if(!fileInput.files[0]){ toast('Sila pilih fail.', true); return; }
+  const file = fileInput.files[0];
+  if(file.size > 12*1024*1024){ toast('Fail terlalu besar (had 12MB).', true); return; }
+  if(saveBtn){ saveBtn.disabled=true; saveBtn.textContent='Memproses...'; }
+  const processed = await compressImage(file);
+  const mimeType = processed.type || file.type;
+  const reader = new FileReader();
+  reader.onload = async ()=>{
+    const base64 = reader.result.split(',')[1];
+    const uploaded = await uploadFileToDrive(file.name, mimeType, base64);
+    if(!uploaded || !uploaded.url){ if(saveBtn){saveBtn.disabled=false; saveBtn.textContent='Simpan untuk Murid Dipilih';} toast('Gagal muat naik fail.', true); return; }
+    checked.forEach((id,i)=>{
+      if(!DB.evidenceAll[id]) DB.evidenceAll[id] = [];
+      DB.evidenceAll[id].push({id:'e'+Date.now()+'-'+i, topic, penggal, date, rating, fileType:mimeType, fileUrl:uploaded.url});
+    });
+    const ok = await sSet('evidenceAll', DB.evidenceAll);
+    if(ok===null){ toast('Gagal simpan ke Google Sheets.', true); if(saveBtn){saveBtn.disabled=false; saveBtn.textContent='Simpan untuk Murid Dipilih';} return; }
+    for(const id of checked){ await unverify(id); }
+    closeModal(); toast('Eviden pukal disimpan untuk '+checked.length+' murid.');
+    logActivity('Upload Eviden Pukal', cls+' — '+topic+' ('+checked.length+' murid)');
+    paintMurid();
+  };
+  reader.readAsDataURL(processed);
+}
+
 async function saveEvidence(){
   const topic=document.getElementById('evTopic').value;
   const date=document.getElementById('evDate').value;
@@ -972,15 +1198,17 @@ async function saveEvidence(){
   const saveBtn=document.getElementById('evSaveBtn');
   if(!fileInput.files[0]){ toast('Sila pilih fail eviden.', true); return; }
   const file = fileInput.files[0];
-  if(file.size > 8*1024*1024){ toast('Fail terlalu besar (had 8MB). Sila mampatkan.', true); return; }
-  if(saveBtn){ saveBtn.disabled=true; saveBtn.textContent='Memuat naik...'; }
+  if(file.size > 12*1024*1024){ toast('Fail terlalu besar (had 12MB).', true); return; }
+  if(saveBtn){ saveBtn.disabled=true; saveBtn.textContent='Memampat & memuat naik...'; }
+  const processed = await compressImage(file);
+  const mimeType = processed.type || file.type;
   const reader = new FileReader();
   reader.onload = async ()=>{
     const base64 = reader.result.split(',')[1];
-    const uploaded = await uploadFileToDrive(file.name, file.type, base64);
+    const uploaded = await uploadFileToDrive(file.name, mimeType, base64);
     if(!uploaded || !uploaded.url){ if(saveBtn){saveBtn.disabled=false; saveBtn.textContent='Simpan Eviden';} toast('Gagal muat naik fail.', true); return; }
     const s = DB.students.find(x=>x.id===VIEW.studentId);
-    const ev = {id:'e'+Date.now(), topic, penggal, date, rating, fileType:file.type, fileUrl:uploaded.url};
+    const ev = {id:'e'+Date.now(), topic, penggal, date, rating, fileType:mimeType, fileUrl:uploaded.url};
     if(!DB.evidenceAll[s.id]) DB.evidenceAll[s.id] = [];
     DB.evidenceAll[s.id].push(ev);
     const ok = await sSet('evidenceAll', DB.evidenceAll);
@@ -988,17 +1216,35 @@ async function saveEvidence(){
     await unverify(s.id);
     closeModal(); toast('Eviden disimpan.'); logActivity('Upload Eviden', s.name+' — '+topic); paintProfile();
   };
-  reader.readAsDataURL(file);
+  reader.readAsDataURL(processed);
 }
 async function deleteEvidence(evId){
-  if(!confirm('Padam eviden ini?')) return;
+  if(!confirm('Padam eviden ini? Boleh dipulihkan dari Tong Sampah Eviden.')) return;
   const s = DB.students.find(x=>x.id===VIEW.studentId);
-  const before = DB.evidenceAll[s.id] || [];
-  DB.evidenceAll[s.id] = before.filter(e=>e.id!==evId);
+  const ev = (DB.evidenceAll[s.id]||[]).find(e=>e.id===evId);
+  if(!ev) return;
+  ev.deleted = true; ev.deletedAt = new Date().toISOString();
   const ok = await sSet('evidenceAll', DB.evidenceAll);
-  if(ok===null){ DB.evidenceAll[s.id] = before; toast('Gagal padam. Cuba lagi.', true); return; }
+  if(ok===null){ delete ev.deleted; delete ev.deletedAt; toast('Gagal padam. Cuba lagi.', true); return; }
   await unverify(s.id);
-  toast('Eviden dipadam.'); logActivity('Padam Eviden', s.name); paintProfile();
+  toast('Eviden dipindah ke Tong Sampah.'); logActivity('Padam Eviden (Tong Sampah)', s.name); paintProfile();
+}
+async function restoreEvidence(evId){
+  const s = DB.students.find(x=>x.id===VIEW.studentId);
+  const ev = (DB.evidenceAll[s.id]||[]).find(e=>e.id===evId);
+  if(!ev) return;
+  delete ev.deleted; delete ev.deletedAt;
+  const ok = await sSet('evidenceAll', DB.evidenceAll);
+  if(ok===null){ ev.deleted=true; toast('Gagal pulihkan. Cuba lagi.', true); return; }
+  toast('Eviden dipulihkan.'); logActivity('Pulihkan Eviden', s.name); paintProfile();
+}
+async function permanentDeleteEvidence(evId){
+  if(!confirm('Padam KEKAL eviden ini? Tindakan ini tidak boleh dibatalkan.')) return;
+  const s = DB.students.find(x=>x.id===VIEW.studentId);
+  DB.evidenceAll[s.id] = (DB.evidenceAll[s.id]||[]).filter(e=>e.id!==evId);
+  const ok = await sSet('evidenceAll', DB.evidenceAll);
+  if(ok===null){ toast('Gagal padam. Cuba lagi.', true); return; }
+  toast('Eviden dipadam kekal.'); logActivity('Padam Kekal Eviden', s.name); paintProfile();
 }
 
 /* --- TP override --- */
@@ -1123,10 +1369,10 @@ function printReport(){
 function printClassReport(){
   const cls = VIEW.classFilter;
   if(cls==='ALL'){ toast('Sila pilih satu kelas dahulu untuk cetak laporan kelas.', true); return; }
-  const list = DB.students.filter(s=>s.class===cls);
+  const list = DB.students.filter(s=>!s.deleted && s.class===cls);
   const rows = list.map(s=>{
     const tp = tpOf(s);
-    const ev = (DB.evidenceAll[s.id]||[]).length;
+    const ev = (DB.evidenceAll[s.id]||[]).filter(e=>!e.deleted).length;
     const verified = DB.verifiedAll[s.id] ? 'Disahkan' : 'Belum Disahkan';
     return `<tr><td>${s.name}</td><td>TP${tp}</td><td>${TP_DESC[tp]}</td><td>${ev}</td><td>${verified}</td></tr>`;
   }).join('');
@@ -1140,13 +1386,42 @@ function printClassReport(){
   logActivity('Cetak Laporan Kelas', cls);
 }
 
+function printSchoolReport(){
+  const classNames = DB.meta.classes;
+  const activeStudents = DB.students.filter(s=>!s.deleted);
+  const overallAvg = (activeStudents.reduce((sum,s)=>sum+tpOf(s),0)/Math.max(1,activeStudents.length)).toFixed(2);
+  const classSections = classNames.map(cls=>{
+    const list = activeStudents.filter(s=>s.class===cls);
+    if(list.length===0) return '';
+    const rows = list.map(s=>{
+      const tp = tpOf(s);
+      const ev = (DB.evidenceAll[s.id]||[]).filter(e=>!e.deleted).length;
+      return `<tr><td>${s.name}</td><td>TP${tp}</td><td>${ev}</td></tr>`;
+    }).join('');
+    const clsAvg = (list.reduce((sum,s)=>sum+tpOf(s),0)/list.length).toFixed(2);
+    return `<h3 style="font-size:13.5px;margin-top:18px;">${cls} — ${list.length} murid (Purata TP: ${clsAvg})</h3>
+      <table class="pr-table"><thead><tr><th>Nama</th><th>TP</th><th>Eviden</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }).join('');
+  document.getElementById('printArea').innerHTML = `
+    <div class="pr-header"><div><h1>Laporan Tahunan PBD Sekolah — Pendidikan Islam</h1><div style="font-size:12px;color:#555;">Dijana pada ${new Date().toLocaleDateString('ms-MY')}</div></div>
+    <div style="text-align:right;font-size:12px;"><b>SJK(C) Ladang Grisek</b><br>Kod: JBC1049 &middot; Sesi ${new Date().getFullYear()}</div></div>
+    <table class="pr-table"><tr><th style="width:30%">Jumlah Murid</th><td>${activeStudents.length}</td></tr>
+    <tr><th>Jumlah Kelas</th><td>${classNames.length}</td></tr>
+    <tr><th>Purata TP Sekolah</th><td>${overallAvg}</td></tr></table>
+    ${classSections}
+    <div style="margin-top:30px;font-size:12px;">Disediakan oleh (Ketua Panitia): ______________________ &nbsp;&nbsp;&nbsp; Disahkan oleh (Pengetua/GB): ______________________</div>
+  `;
+  window.print();
+  logActivity('Cetak Laporan Tahunan Sekolah', '');
+}
+
 function exportStudentsCSV(){
   const cls = VIEW.classFilter;
-  const list = DB.students.filter(s=> cls==='ALL' || s.class===cls);
+  const list = DB.students.filter(s=> !s.deleted && (cls==='ALL' || s.class===cls));
   const header = ['Nama','Kelas','TP','Deskriptor','Status Pengesahan','Jumlah Eviden'];
   const rows = list.map(s=>{
     const tp = tpOf(s);
-    const ev = (DB.evidenceAll[s.id]||[]).length;
+    const ev = (DB.evidenceAll[s.id]||[]).filter(e=>!e.deleted).length;
     const verified = DB.verifiedAll[s.id] ? 'Disahkan' : 'Belum Disahkan';
     return [s.name, s.class, 'TP'+tp, TP_DESC[tp], verified, ev];
   });

@@ -134,6 +134,8 @@ tr:hover td{background:#F5F9F5;}
 .section-head{display:flex;align-items:center;justify-content:space-between;margin:30px 0 4px;}
 .section-head h2{font-size:18px;margin:0;}
 .toolbar{display:flex;gap:10px;align-items:center;margin:14px 0;flex-wrap:wrap;}
+.tajuk-subtab{padding:9px 18px;border-radius:9px;border:1.5px solid var(--garis);background:#fff;color:var(--tulisan-lembut);font-weight:700;font-size:13.5px;margin-right:8px;}
+.tajuk-subtab.active{background:var(--hijau);color:#fff;border-color:var(--hijau);}
 .toolbar select,.toolbar input{width:auto;min-width:170px;}
 .empty{padding:44px 20px;text-align:center;color:var(--tulisan-lembut);}
 .empty .em-ic{font-size:30px;margin-bottom:8px;}
@@ -181,6 +183,7 @@ tr:hover td{background:#F5F9F5;}
 .tpref-desc{font-size:12.5px;color:var(--tulisan-lembut);margin:6px 0;line-height:1.5;}
 .tpref-list{margin:4px 0 0;padding-left:18px;font-size:12.5px;color:var(--tulisan);line-height:1.6;}
 .tpref-list li{margin-bottom:2px;}
+@page{ size:A4; margin:14mm; }
 @media print{
   body *{visibility:hidden;}
   #printArea, #printArea *{visibility:visible;}
@@ -258,6 +261,11 @@ const DEFAULT_TOPICS_BY_YEAR = {
 function yearOfClass(cls){
   const m = (cls||'').match(/(\d+)/);
   return m ? m[1] : 'Lain';
+}
+function jantinaOf(name){
+  if(/\bbinti\b/i.test(name||'')) return 'P';
+  if(/\bbin\b/i.test(name||'')) return 'L';
+  return null;
 }
 function yearsFromClasses(){
   const set = new Set();
@@ -407,6 +415,7 @@ function appShell(activeKey, innerHTML){
     {key:'murid', label:'Murid', icon:'🎓'},
     {key:'rekod', label:'Rekod', icon:'📝'},
     {key:'tajuk', label:'Tajuk', icon:'📚'},
+    {key:'laporan', label:'Cetak Laporan', icon:'🖨️'},
     {key:'rujukan', label:'Rujukan TP', icon:'📖'},
     {key:'log', label:'Log', icon:'🗒️'}
   ] : [
@@ -414,6 +423,7 @@ function appShell(activeKey, innerHTML){
     {key:'murid', label:'Murid', icon:'🎓'},
     {key:'rekod', label:'Rekod', icon:'📝'},
     {key:'tajuk', label:'Tajuk', icon:'📚'},
+    {key:'laporan', label:'Cetak Laporan', icon:'🖨️'},
     {key:'rujukan', label:'Rujukan TP', icon:'📖'}
   ];
   return `
@@ -440,12 +450,9 @@ function wireShellNav(handler){
 /* ============ TP CALCULATION ============ */
 function calcTP(evList){
   if(!evList || evList.length===0) return 1;
-  const p1 = evList.filter(e=>e.penggal==='1');
-  const p2 = evList.filter(e=>e.penggal==='2');
   const avgRating = evList.reduce((s,e)=>s+Number(e.rating||1),0)/evList.length;
-  const consistency = (p1.length>0 && p2.length>0) ? 1 : (p1.length>0||p2.length>0 ? 0.45 : 0);
   const countScore = Math.min(evList.length,6)/6;
-  const raw = (avgRating/3)*0.5 + consistency*0.3 + countScore*0.2;
+  const raw = (avgRating/3)*0.65 + countScore*0.35;
   return Math.min(6, Math.max(1, Math.round(raw*6)));
 }
 function tpOf(student){
@@ -457,10 +464,11 @@ function tpOf(student){
 /* ============ ADMIN VIEW ============ */
 async function renderAdmin(){
   VIEW.page='admin';
-  if(!VIEW.tab || !['guru','murid','rekod','tajuk','rujukan','log'].includes(VIEW.tab)) VIEW.tab='guru';
+  if(!VIEW.tab || !['guru','murid','rekod','tajuk','laporan','rujukan','log'].includes(VIEW.tab)) VIEW.tab='guru';
   if(VIEW.tab==='murid'){ await paintMurid(); return; }
   if(VIEW.tab==='rekod'){ await paintRekod(); return; }
   if(VIEW.tab==='tajuk'){ await paintTajuk(); return; }
+  if(VIEW.tab==='laporan'){ await paintLaporan(); return; }
   if(VIEW.tab==='rujukan'){ await paintRujukan(); return; }
   if(VIEW.tab==='log'){ await paintLog(); return; }
   await paintAdmin();
@@ -477,12 +485,13 @@ async function paintAdmin(){
   wireShellNav(navigateShared);
 }
 
-/* --- Shared nav handler covering Dashboard/Murid/Rekod/Tajuk/Rujukan/Admin tabs --- */
+/* --- Shared nav handler covering Dashboard/Murid/Rekod/Tajuk/Laporan/Rujukan/Admin tabs --- */
 function navigateShared(k){
   if(SESSION.role==='admin'){
     if(k==='murid') paintMurid();
     else if(k==='rekod') paintRekod();
     else if(k==='tajuk') paintTajuk();
+    else if(k==='laporan') paintLaporan();
     else if(k==='rujukan') paintRujukan();
     else if(k==='log') paintLog();
     else if(k==='sampah') paintSampah();
@@ -493,6 +502,7 @@ function navigateShared(k){
     else if(k==='rekod') paintRekod();
     else if(k==='tajuk') paintTajuk();
     else if(k==='sampah') paintSampah();
+    else if(k==='laporan') paintLaporan();
     else paintRujukan();
   }
 }
@@ -523,12 +533,31 @@ async function paintSampah(){
 
 async function paintTajuk(){
   VIEW.tab='tajuk';
+  if(!VIEW.tajukYear) VIEW.tajukYear='3';
   const el = document.getElementById('app');
   const content = `
     <div class="page-head"><span class="eyebrow">${SESSION.role==='admin'?'Panel Pentadbir':'Dashboard Guru'}</span><h1>Tajuk Eviden</h1></div>
     ${adminTajukOnlyHTML()}`;
   el.innerHTML = appShell('tajuk', content);
   wireShellNav(navigateShared);
+  document.querySelectorAll('.tajuk-subtab').forEach(b=>{
+    b.onclick=()=>{ VIEW.tajukYear=b.dataset.y; paintTajuk(); };
+  });
+}
+
+function adminTajukOnlyHTML(){
+  const years = Array.from(new Set([...yearsFromClasses(), '3','4','6'])).sort((a,b)=>Number(a)-Number(b));
+  const activeYear = years.includes(VIEW.tajukYear) ? VIEW.tajukYear : years[0];
+  const subtabs = years.map(y=>`<button class="tajuk-subtab ${y===activeYear?'active':''}" data-y="${y}">Tahun ${y}</button>`).join('');
+  const list = DB.meta.topics[activeYear] || [];
+  const rows = list.map((t,i)=>`<div class="ev-item" style="border:none;padding:8px 0;"><div class="ev-info"><span style="font-size:13.5px;">${i+1}. ${t}</span></div><button class="btn danger" style="padding:4px 10px;font-size:12px;" onclick="removeTopic('${activeYear}',${i})">Padam</button></div>`).join('');
+  return `
+  <div class="tabs" style="margin:0 0 16px;">${subtabs}</div>
+  <div class="card">
+    <div class="section-head" style="margin-top:0;"><h2>Tahun ${activeYear} (${list.length} tajuk)</h2></div>
+    <div class="toolbar" style="margin:6px 0;"><input id="newTopic_${activeYear}" placeholder="Tajuk baharu Tahun ${activeYear}"><button class="btn gold" onclick="addTopic('${activeYear}')">Tambah</button></div>
+    <div>${rows || '<div class="empty" style="padding:20px;"><div class="em-ic">📚</div>Tiada tajuk lagi untuk Tahun '+activeYear+'.</div>'}</div>
+  </div>`;
 }
 
 async function paintMurid(){
@@ -667,7 +696,10 @@ function adminMuridHTML(){
   const list = DB.students.filter(s=> !s.deleted && (cls==='ALL' || s.class===cls) && (!search || s.name.toLowerCase().includes(search)));
   const rows = list.map((s)=>{
     const idx = DB.students.indexOf(s);
+    const g = jantinaOf(s.name);
+    const gLabel = g==='P' ? '🧕🏻 Perempuan' : g==='L' ? '👦🏻 Lelaki' : '—';
     return `<tr><td><div class="trow"><div class="mini-avatar">${initials(s.name)}</div><b>${s.name}</b></div></td><td>${s.class}</td>
+    <td style="white-space:nowrap;">${gLabel}</td>
     <td><span class="pill" style="background:#E4F0E6;color:var(--hijau-ok);">🟢 Aktif</span></td>
     <td class="row-actions"><button class="btn ghost" onclick="editStudent(${idx})">Edit</button>
     <button class="btn danger" onclick="deleteStudent(${idx})">Padam</button></td></tr>`;
@@ -684,8 +716,8 @@ function adminMuridHTML(){
       <input id="muridSearch" placeholder="🔍 Cari nama murid…" value="${VIEW.searchTerm||''}" style="min-width:180px;">
       <button class="btn ghost" onclick="navigateShared('sampah')">🗑️ Tong Sampah ${trashCount>0?'('+trashCount+')':''}</button>
     </div>
-    <div class="table-scroll"><table><thead><tr><th>Nama</th><th>Kelas</th><th>Status</th><th></th></tr></thead>
-    <tbody>${rows || '<tr><td colspan="4"><div class="empty"><div class="em-ic">🎓</div>Tiada murid dalam kelas ini.</div></td></tr>'}</tbody></table></div>
+    <div class="table-scroll"><table><thead><tr><th>Nama</th><th>Kelas</th><th>Jantina</th><th>Status</th><th></th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="5"><div class="empty"><div class="em-ic">🎓</div>Tiada murid dalam kelas ini.</div></td></tr>'}</tbody></table></div>
   </div>
   <div class="card" style="margin-top:16px;">
     <h2 style="margin-top:0;">Kelas (${DB.meta.classes.length})</h2>
@@ -731,8 +763,6 @@ function adminRekodHTML(){
     <div class="toolbar" style="margin-top:0;">
       <button class="btn gold" onclick="openBulkUploadModal()">📤 Upload Pukal</button>
       <button class="btn ghost" onclick="exportStudentsCSV()">⬇ Eksport CSV</button>
-      <button class="btn ghost" onclick="printClassReport()">🖨 Laporan Kelas</button>
-      <button class="btn ghost" onclick="printSchoolReport()">🏫 Laporan Tahunan</button>
     </div>
     <div class="toolbar">
       <select id="rekodClassFilter">${opts}</select>
@@ -743,24 +773,31 @@ function adminRekodHTML(){
   </div>`;
 }
 
-function adminTajukOnlyHTML(){
-  const years = Array.from(new Set([...yearsFromClasses(), '3','4','6'])).sort((a,b)=>Number(a)-Number(b));
-  const topicBlocks = years.map(y=>{
-    const list = DB.meta.topics[y] || [];
-    const rows = list.map((t,i)=>`<div class="ev-item" style="border:none;padding:6px 0;"><div class="ev-info"><span style="font-size:13px;">${t}</span></div><button class="btn danger" style="padding:4px 10px;font-size:12px;" onclick="removeTopic('${y}',${i})">Padam</button></div>`).join('');
-    return `<div style="margin-bottom:22px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <b style="font-size:13.5px;color:var(--hijau-gelap);">Tahun ${y}</b><span style="font-size:11.5px;color:var(--tulisan-lembut);">${list.length} tajuk</span>
-      </div>
-      <div class="toolbar" style="margin:6px 0;"><input id="newTopic_${y}" placeholder="Tajuk baharu Tahun ${y}"><button class="btn gold" onclick="addTopic('${y}')">Tambah</button></div>
-      <div>${rows || '<div class="empty" style="padding:14px;"><div class="em-ic">📚</div>Tiada tajuk lagi.</div>'}</div>
-    </div>`;
-  }).join('');
-  return `
-  <div class="card">
-    <h2 style="margin-top:0;">Tajuk Eviden Mengikut Tahun</h2>
-    ${topicBlocks}
-  </div>`;
+/* --- Shared: Cetak Laporan --- */
+async function paintLaporan(){
+  VIEW.tab='laporan';
+  const el = document.getElementById('app');
+  const cls = VIEW.classFilter;
+  const opts = ['ALL',...DB.meta.classes].map(c=>`<option value="${c}" ${c===cls?'selected':''}>${c==='ALL'?'Semua Kelas':c}</option>`).join('');
+  const content = `
+    <div class="page-head"><span class="eyebrow">${SESSION.role==='admin'?'Panel Pentadbir':'Dashboard Guru'}</span><h1>Cetak Laporan</h1></div>
+    <p style="font-size:12.5px;color:var(--tulisan-lembut);margin-top:-4px;">Semua laporan dijana dalam format A4, siap untuk dicetak atau disimpan sebagai PDF.</p>
+    <div class="card">
+      <h2 style="margin-top:0;">🖨 Laporan Kelas</h2>
+      <p style="font-size:12.5px;color:var(--tulisan-lembut);">Senarai TP semua murid dalam satu kelas — untuk mesyuarat panitia atau rekod dalaman.</p>
+      <div class="toolbar"><select id="laporanClassFilter">${opts}</select>
+      <button class="btn gold" onclick="printClassReport()">Cetak Laporan Kelas</button></div>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <h2 style="margin-top:0;">🏫 Laporan Tahunan Sekolah</h2>
+      <p style="font-size:12.5px;color:var(--tulisan-lembut);">Gabungan semua kelas dengan purata TP sekolah — untuk hantar ke PPD/JPN di penghujung sesi.</p>
+      <button class="btn gold" onclick="printSchoolReport()">Cetak Laporan Tahunan</button>
+    </div>
+  `;
+  el.innerHTML = appShell('laporan', content);
+  wireShellNav(navigateShared);
+  const f = document.getElementById('laporanClassFilter');
+  if(f) f.onchange=()=>{VIEW.classFilter=f.value;};
 }
 
 /* --- Admin: user CRUD --- */
@@ -932,12 +969,12 @@ async function paintGuru(){
     if(studs.length===0) return 0;
     return +(studs.reduce((sum,s)=>sum+tpOf(s),0)/studs.length).toFixed(2);
   });
-  const pg = penggalCountdown();
 
   const content = `
     <div class="school-banner">
       <div class="sb-emoji">📗</div>
-      <div><div class="sb-name">SJK(C) Ladang Grisek</div><div class="sb-meta">Kod: JBC1049 &middot; Panitia Pendidikan Islam &middot; Sesi ${new Date().getFullYear()}</div></div>
+      <div style="flex:1;"><div class="sb-name">SJK(C) Ladang Grisek</div><div class="sb-meta">Kod: JBC1049 &middot; Panitia Pendidikan Islam &middot; Sesi ${new Date().getFullYear()}</div></div>
+      <div class="sb-clock" id="liveClock"><div class="sb-clock-time" id="liveClockTime">--:--:--</div><div class="sb-clock-date" id="liveClockDate">—</div></div>
     </div>
     <div class="grid-cards">
       <div class="stat-card"><span class="ic">🎓</span><div class="n">${activeStudents.length}</div><div class="l">Jumlah Murid</div></div>
@@ -946,8 +983,8 @@ async function paintGuru(){
       <div class="stat-card"><span class="ic">⭐</span><div class="n">${avgTP}</div><div class="l">Purata TP</div></div>
     </div>
     <div class="card" style="margin-top:12px;background:linear-gradient(120deg,var(--emas-l),#fff);border:1px solid var(--emas);display:flex;align-items:center;gap:12px;">
-      <span style="font-size:24px;">⏳</span>
-      <div><b style="color:var(--hijau-gelap);">${pg.days} hari lagi</b><span style="color:var(--tulisan-lembut);"> sebelum ${pg.label} tamat (${pg.endLabel})</span></div>
+      <span style="font-size:24px;">📢</span>
+      <div><b style="color:var(--hijau-gelap);">Selamat datang, Cikgu ${SESSION.name}!</b><br><span style="color:var(--tulisan-lembut);">Tahun ini sekolah berakhir pada ${SCHOOL_YEAR_END_LABEL} (${schoolYearDaysLeft()} hari lagi).</span></div>
     </div>
     <div class="two-col" style="margin-top:20px;">
       <div class="card">
@@ -982,15 +1019,11 @@ async function paintGuru(){
     options:{plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true, max:6}}}
   });
 }
-function penggalCountdown(){
+const SCHOOL_YEAR_END = new Date(2026,11,4,23,59,59);
+const SCHOOL_YEAR_END_LABEL = '04 Disember 2026';
+function schoolYearDaysLeft(){
   const now = new Date();
-  const y = now.getFullYear();
-  const p1End = new Date(y,5,30,23,59,59);
-  const p2End = new Date(y,11,31,23,59,59);
-  const isP1 = now <= p1End;
-  const end = isP1 ? p1End : p2End;
-  const days = Math.max(0, Math.ceil((end-now)/(1000*60*60*24)));
-  return { label: isP1?'Penggal 1':'Penggal 2', days, endLabel: isP1?'30 Jun':'31 Disember' };
+  return Math.max(0, Math.ceil((SCHOOL_YEAR_END-now)/(1000*60*60*24)));
 }
 
 /* ============ STUDENT PROFILE ============ */
@@ -1021,7 +1054,7 @@ async function paintProfile(){
       ${thumb}
       <div class="ev-info">
         <div class="t">${ev.topic}</div>
-        <div class="d"><span class="rate-dot" style="background:${dotColor}"></span>Penggal ${ev.penggal} &middot; ${ev.date} &middot; ${ratingLabel(ev.rating)}</div>
+        <div class="d"><span class="rate-dot" style="background:${dotColor}"></span>${ev.date} &middot; ${ratingLabel(ev.rating)}</div>
       </div>
       <div class="row-actions">
         <a class="btn ghost" style="padding:5px 10px;font-size:12px;" href="${ev.fileUrl}" target="_blank" rel="noopener">Lihat</a>
@@ -1030,7 +1063,7 @@ async function paintProfile(){
     </div>`;
   }).join('') || '<div class="empty"><div class="em-ic">📎</div>Belum ada eviden dimuat naik.</div>';
   const trashRows = trashedEv.map(ev=>`<div class="ev-item" style="opacity:.6;">
-      <div class="ev-info"><div class="t">${ev.topic}</div><div class="d">Penggal ${ev.penggal} &middot; ${ev.date}</div></div>
+      <div class="ev-info"><div class="t">${ev.topic}</div><div class="d">${ev.date}</div></div>
       <div class="row-actions">
         <button class="btn ghost" style="padding:5px 10px;font-size:12px;" onclick="restoreEvidence('${ev.id}')">♻ Pulihkan</button>
         <button class="btn danger" style="padding:5px 10px;font-size:12px;" onclick="permanentDeleteEvidence('${ev.id}')">Kekal</button>
@@ -1084,22 +1117,17 @@ async function paintProfile(){
   `;
   el.innerHTML = appShell(isAdminView?'rekod':'dash', content);
   wireShellNav(navigateShared);
-  const p1=s._evidence.filter(e=>e.penggal==='1').length, p2=s._evidence.filter(e=>e.penggal==='2').length;
   const rHigh=s._evidence.filter(e=>e.rating==3).length, rMid=s._evidence.filter(e=>e.rating==2).length, rLow=s._evidence.filter(e=>e.rating==1).length;
   new Chart(document.getElementById('studTPChart'), {
     type:'bar',
-    data:{labels:['Penggal 1','Penggal 2','Tinggi','Sederhana','Rendah'],
-      datasets:[{data:[p1,p2,rHigh,rMid,rLow], backgroundColor:['#146357','#0E4C42','#3E7A4E','#C79A4B','#B5493D'], borderRadius:8}]},
+    data:{labels:['Tinggi','Sederhana','Rendah'],
+      datasets:[{data:[rHigh,rMid,rLow], backgroundColor:['#3E7A4E','#C79A4B','#B5493D'], borderRadius:8}]},
     options:{plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}}
   });
 }
 function ratingLabel(r){ return r==3?'Tinggi':r==2?'Sederhana':'Rendah'; }
 
 /* --- evidence CRUD --- */
-function penggalFromDate(dateStr){
-  const month = Number((dateStr||'').split('-')[1]);
-  return month>=1 && month<=6 ? '1' : '2';
-}
 function openEvidenceModal(){
   const s = DB.students.find(x=>x.id===VIEW.studentId);
   const year = yearOfClass(s.class);
@@ -1117,23 +1145,12 @@ function openEvidenceModal(){
   showModal(`
     <h3>Upload Eviden — Tahun ${year}</h3>
     <div class="field"><label>Tajuk Eviden</label><select id="evTopic">${topicOpts}</select></div>
-    <div class="field"><label>Tarikh</label><input type="date" id="evDate" value="${today}" onchange="updatePenggalHint()"></div>
-    <div class="field"><label>Penggal (ditentukan automatik ikut tarikh)</label>
-      <div id="evPenggalHint" style="padding:10px 12px;background:var(--krim);border-radius:9px;font-size:13px;font-weight:700;color:var(--hijau-gelap);"></div>
-    </div>
+    <div class="field"><label>Tarikh</label><input type="date" id="evDate" value="${today}"></div>
     <div class="field"><label>Tahap Eviden (Penilaian Guru)</label><select id="evRating"><option value="3">Tinggi</option><option value="2" selected>Sederhana</option><option value="1">Rendah</option></select></div>
     <div class="field"><label>Fail (Gambar JPG/PNG atau PDF)</label><input type="file" id="evFile" accept="image/jpeg,image/png,application/pdf"></div>
     <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Batal</button>
     <button class="btn" id="evSaveBtn" onclick="saveEvidence()">Simpan Eviden</button></div>
   `);
-  updatePenggalHint();
-}
-function updatePenggalHint(){
-  const dateEl = document.getElementById('evDate');
-  const hintEl = document.getElementById('evPenggalHint');
-  if(!dateEl || !hintEl) return;
-  const p = penggalFromDate(dateEl.value);
-  hintEl.textContent = p==='1' ? 'Penggal 1 (1 Januari – 30 Jun)' : 'Penggal 2 (1 Julai – 31 Disember)';
 }
 function compressImage(file, maxDim, quality){
   maxDim = maxDim||1280; quality = quality||0.72;
@@ -1165,8 +1182,7 @@ function openBulkUploadModal(){
     <p style="font-size:12.5px;color:var(--tulisan-lembut);margin-top:-6px;">Satu fail untuk beberapa murid sekaligus (cth: gambar aktiviti kelas).</p>
     <div class="field"><label>Kelas</label><select id="bulkClass" onchange="renderBulkStudents()">${classOpts}</select></div>
     <div class="field"><label>Tajuk Eviden</label><select id="bulkTopic"></select></div>
-    <div class="field"><label>Tarikh</label><input type="date" id="bulkDate" value="${new Date().toISOString().slice(0,10)}" onchange="updateBulkPenggalHint()"></div>
-    <div class="field"><label>Penggal (automatik)</label><div id="bulkPenggalHint" style="padding:10px 12px;background:var(--krim);border-radius:9px;font-size:13px;font-weight:700;color:var(--hijau-gelap);"></div></div>
+    <div class="field"><label>Tarikh</label><input type="date" id="bulkDate" value="${new Date().toISOString().slice(0,10)}"></div>
     <div class="field"><label>Tahap Eviden</label><select id="bulkRating"><option value="3">Tinggi</option><option value="2" selected>Sederhana</option><option value="1">Rendah</option></select></div>
     <div class="field"><label>Fail (satu fail untuk semua murid dipilih)</label><input type="file" id="bulkFile" accept="image/jpeg,image/png,application/pdf"></div>
     <div class="field"><label>Pilih Murid</label><div id="bulkStudentList" style="max-height:180px;overflow-y:auto;border:1.5px solid var(--garis);border-radius:9px;padding:8px;"></div></div>
@@ -1174,7 +1190,6 @@ function openBulkUploadModal(){
     <button class="btn" id="bulkSaveBtn" onclick="saveBulkEvidence()">Simpan untuk Murid Dipilih</button></div>
   `);
   renderBulkStudents();
-  updateBulkPenggalHint();
 }
 function renderBulkStudents(){
   const cls = document.getElementById('bulkClass').value;
@@ -1186,18 +1201,10 @@ function renderBulkStudents(){
   const listEl = document.getElementById('bulkStudentList');
   listEl.innerHTML = students.map(s=>`<label style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;"><input type="checkbox" class="bulkStudentChk" value="${s.id}" checked> ${s.name}</label>`).join('') || '<div style="font-size:12.5px;color:var(--tulisan-lembut);">Tiada murid dalam kelas ini.</div>';
 }
-function updateBulkPenggalHint(){
-  const dateEl = document.getElementById('bulkDate');
-  const hintEl = document.getElementById('bulkPenggalHint');
-  if(!dateEl || !hintEl) return;
-  const p = penggalFromDate(dateEl.value);
-  hintEl.textContent = p==='1' ? 'Penggal 1 (1 Januari – 30 Jun)' : 'Penggal 2 (1 Julai – 31 Disember)';
-}
 async function saveBulkEvidence(){
   const cls = document.getElementById('bulkClass').value;
   const topic = document.getElementById('bulkTopic').value;
   const date = document.getElementById('bulkDate').value;
-  const penggal = penggalFromDate(date);
   const rating = document.getElementById('bulkRating').value;
   const fileInput = document.getElementById('bulkFile');
   const saveBtn = document.getElementById('bulkSaveBtn');
@@ -1217,7 +1224,7 @@ async function saveBulkEvidence(){
     if(!uploaded || !uploaded.url){ if(saveBtn){saveBtn.disabled=false; saveBtn.textContent='Simpan untuk Murid Dipilih';} toast('Gagal muat naik fail.', true); return; }
     checked.forEach((id,i)=>{
       if(!DB.evidenceAll[id]) DB.evidenceAll[id] = [];
-      DB.evidenceAll[id].push({id:'e'+Date.now()+'-'+i, topic, penggal, date, rating, fileType:mimeType, fileUrl:uploaded.url});
+      DB.evidenceAll[id].push({id:'e'+Date.now()+'-'+i, topic, date, rating, fileType:mimeType, fileUrl:uploaded.url});
     });
     const ok = await sSet('evidenceAll', DB.evidenceAll);
     if(ok===null){ toast('Gagal simpan ke Google Sheets.', true); if(saveBtn){saveBtn.disabled=false; saveBtn.textContent='Simpan untuk Murid Dipilih';} return; }
@@ -1232,7 +1239,6 @@ async function saveBulkEvidence(){
 async function saveEvidence(){
   const topic=document.getElementById('evTopic').value;
   const date=document.getElementById('evDate').value;
-  const penggal=penggalFromDate(date);
   const rating=document.getElementById('evRating').value;
   const fileInput=document.getElementById('evFile');
   const saveBtn=document.getElementById('evSaveBtn');
@@ -1248,7 +1254,7 @@ async function saveEvidence(){
     const uploaded = await uploadFileToDrive(file.name, mimeType, base64);
     if(!uploaded || !uploaded.url){ if(saveBtn){saveBtn.disabled=false; saveBtn.textContent='Simpan Eviden';} toast('Gagal muat naik fail.', true); return; }
     const s = DB.students.find(x=>x.id===VIEW.studentId);
-    const ev = {id:'e'+Date.now(), topic, penggal, date, rating, fileType:mimeType, fileUrl:uploaded.url};
+    const ev = {id:'e'+Date.now(), topic, date, rating, fileType:mimeType, fileUrl:uploaded.url};
     if(!DB.evidenceAll[s.id]) DB.evidenceAll[s.id] = [];
     DB.evidenceAll[s.id].push(ev);
     const ok = await sSet('evidenceAll', DB.evidenceAll);
@@ -1379,8 +1385,6 @@ function printReport(){
   const anecdotes = DB.anecdotesAll[s.id] || [];
   const verified = !!DB.verifiedAll[s.id];
   const tp = tpOf(s);
-  const p1 = s._evidence.filter(e=>e.penggal==='1');
-  const p2 = s._evidence.filter(e=>e.penggal==='2');
   const evRow = e=>`<tr><td>${e.topic}</td><td>${e.date}</td><td>${ratingLabel(e.rating)}</td></tr>`;
   const ancRow = a=>`<tr><td style="width:20%">${a.date}</td><td>${a.text}</td></tr>`;
   document.getElementById('printArea').innerHTML = `
@@ -1388,10 +1392,8 @@ function printReport(){
     <div style="text-align:right;font-size:12px;"><b>${s.name}</b><br>${s.class}</div></div>
     <table class="pr-table"><tr><th style="width:30%">Tahap Penguasaan (TP) Muktamad</th><td><b>TP${tp}</b> — ${TP_DESC[tp]}</td></tr>
     <tr><th>Status Penyelarasan</th><td>${verified?'Disahkan':'Belum Disahkan'}</td></tr></table>
-    <h3 style="font-size:14px;">Eviden Penggal 1 (${p1.length})</h3>
-    <table class="pr-table"><thead><tr><th>Tajuk</th><th>Tarikh</th><th>Tahap</th></tr></thead><tbody>${p1.map(evRow).join('')||'<tr><td colspan=3>Tiada</td></tr>'}</tbody></table>
-    <h3 style="font-size:14px;">Eviden Penggal 2 (${p2.length})</h3>
-    <table class="pr-table"><thead><tr><th>Tajuk</th><th>Tarikh</th><th>Tahap</th></tr></thead><tbody>${p2.map(evRow).join('')||'<tr><td colspan=3>Tiada</td></tr>'}</tbody></table>
+    <h3 style="font-size:14px;">Senarai Eviden (${s._evidence.length})</h3>
+    <table class="pr-table"><thead><tr><th>Tajuk</th><th>Tarikh</th><th>Tahap</th></tr></thead><tbody>${s._evidence.map(evRow).join('')||'<tr><td colspan=3>Tiada</td></tr>'}</tbody></table>
     <h3 style="font-size:14px;">Catatan Guru</h3>
     <table class="pr-table">
       <tr><th style="width:25%">Pemerhatian</th><td>${notes.p||'-'}</td></tr>

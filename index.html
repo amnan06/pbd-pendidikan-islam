@@ -550,16 +550,17 @@ async function paintTajuk(){
 }
 
 function adminTajukOnlyHTML(){
+  const isAdmin = SESSION.role==='admin';
   const years = Array.from(new Set([...yearsFromClasses(), '3','4','6'])).sort((a,b)=>Number(a)-Number(b));
   const activeYear = years.includes(VIEW.tajukYear) ? VIEW.tajukYear : years[0];
   const subtabs = years.map(y=>`<button class="tajuk-subtab ${y===activeYear?'active':''}" data-y="${y}">Tahun ${y}</button>`).join('');
   const list = DB.meta.topics[activeYear] || [];
-  const rows = list.map((t,i)=>`<div class="ev-item" style="border:none;padding:8px 0;"><div class="ev-info"><span style="font-size:13.5px;">${i+1}. ${t}</span></div><button class="btn danger" style="padding:4px 10px;font-size:12px;" onclick="removeTopic('${activeYear}',${i})">Padam</button></div>`).join('');
+  const rows = list.map((t,i)=>`<div class="ev-item" style="border:none;padding:8px 0;"><div class="ev-info"><span style="font-size:13.5px;">${i+1}. ${t}</span></div>${isAdmin?`<button class="btn danger" style="padding:4px 10px;font-size:12px;" onclick="removeTopic('${activeYear}',${i})">Padam</button>`:''}</div>`).join('');
   return `
   <div class="tabs" style="margin:0 0 16px;">${subtabs}</div>
   <div class="card">
     <div class="section-head" style="margin-top:0;"><h2>Tahun ${activeYear} (${list.length} tajuk)</h2></div>
-    <div class="toolbar" style="margin:6px 0;"><input id="newTopic_${activeYear}" placeholder="Tajuk baharu Tahun ${activeYear}"><button class="btn gold" onclick="addTopic('${activeYear}')">Tambah</button></div>
+    ${isAdmin ? `<div class="toolbar" style="margin:6px 0;"><input id="newTopic_${activeYear}" placeholder="Tajuk baharu Tahun ${activeYear}"><button class="btn gold" onclick="addTopic('${activeYear}')">Tambah</button></div>` : `<p style="font-size:12px;color:var(--tulisan-lembut);margin-top:-4px;">Untuk rujukan sahaja. Hanya Admin boleh tambah/padam tajuk.</p>`}
     <div>${rows || '<div class="empty" style="padding:20px;"><div class="em-ic">📚</div>Tiada tajuk lagi untuk Tahun '+activeYear+'.</div>'}</div>
   </div>`;
 }
@@ -756,10 +757,10 @@ function adminRekodHTML(){
     const tp = tpOf(s);
     const verified = !!DB.verifiedAll[s.id];
     const evCount = (DB.evidenceAll[s.id]||[]).filter(e=>!e.deleted).length;
-    return `<tr><td><div class="trow"><div class="mini-avatar">${initials(s.name)}</div><b>${s.name}</b></div></td><td>${s.class}</td>
+    return `<tr style="cursor:pointer;" onclick="openStudent('${s.id}')"><td><div class="trow"><div class="mini-avatar">${initials(s.name)}</div><b>${s.name}</b></div></td><td>${s.class}</td>
     <td><span class="pill tp${tp}">TP${tp}</span></td><td>${evCount}</td>
     <td>${verified?'✅':'⏳'}</td>
-    <td class="row-actions"><button class="btn ghost" onclick="openStudent('${s.id}')">Lihat</button></td></tr>`;
+    <td style="color:var(--tulisan-lembut);font-size:12px;">Klik untuk lihat &rarr;</td></tr>`;
   }).join('');
   const opts = ['ALL',...DB.meta.classes].map(c=>`<option value="${c}" ${c===cls?'selected':''}>${c==='ALL'?'Semua Kelas':c}</option>`).join('');
   return `
@@ -1051,6 +1052,7 @@ function schoolYearDaysLeft(){
 /* ============ STUDENT PROFILE ============ */
 async function openStudent(id){
   VIEW.studentId=id; VIEW.page='profile';
+  VIEW.profileFrom = VIEW.tab || (SESSION.role==='admin' ? 'rekod' : 'dash');
   await paintProfile();
 }
 async function paintProfile(){
@@ -1095,7 +1097,7 @@ async function paintProfile(){
       <button class="btn danger" style="padding:5px 10px;font-size:12px;" onclick="deleteAnecdote('${a.id}')">Padam</button></div>`).join('') || '<div class="empty" style="padding:16px;"><div class="em-ic">📝</div>Tiada anekdot direkod.</div>';
 
   const content = `
-    <div class="no-print"><button class="btn ghost" onclick="${isAdminView?'paintRekod()':'paintGuru()'}">&larr; Kembali ke Senarai</button></div>
+    <div class="no-print"><button class="btn ghost" onclick="navigateShared('${VIEW.profileFrom}')">&larr; Kembali ke Senarai</button></div>
     <div class="profile-banner" style="margin-top:16px;">
       <div class="profile-head">
         <div class="profile-id">
@@ -1137,7 +1139,7 @@ async function paintProfile(){
       </div>
     </div>
   `;
-  el.innerHTML = appShell(isAdminView?'rekod':'dash', content);
+  el.innerHTML = appShell(VIEW.profileFrom, content);
   wireShellNav(navigateShared);
   const rHigh=s._evidence.filter(e=>e.rating==3).length, rMid=s._evidence.filter(e=>e.rating==2).length, rLow=s._evidence.filter(e=>e.rating==1).length;
   new Chart(document.getElementById('studTPChart'), {

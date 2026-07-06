@@ -91,6 +91,10 @@ label{font-size:12px;font-weight:700;color:var(--tulisan-lembut);display:block;m
 .school-banner .sb-emoji{width:52px;height:52px;border-radius:14px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;}
 .school-banner .sb-name{font-size:19px;font-weight:800;color:#fff;}
 .school-banner .sb-meta{font-size:12.5px;color:rgba(255,255,255,.75);margin-top:2px;}
+.sb-clock{text-align:right;flex-shrink:0;border-left:1px solid rgba(255,255,255,.25);padding-left:16px;}
+.sb-clock-time{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:700;color:#fff;letter-spacing:.03em;}
+.sb-clock-date{font-size:11.5px;color:rgba(255,255,255,.75);margin-top:2px;}
+@media(max-width:640px){ .school-banner{flex-wrap:wrap;} .sb-clock{border-left:none;border-top:1px solid rgba(255,255,255,.25);padding:10px 0 0;text-align:left;width:100%;} }
 .page-head{margin-bottom:6px;}
 .page-head h1{margin:4px 0 0;font-size:22px;}
 @media(max-width:640px){ .page-head h1{font-size:19px;} .school-banner{padding:16px 18px;} .school-banner .sb-name{font-size:16px;} }
@@ -1006,6 +1010,7 @@ async function paintGuru(){
   el.innerHTML = appShell('dash', content);
   wireShellNav(navigateShared);
   document.getElementById('guruClassFilter').onchange=(e)=>{VIEW.classFilter=e.target.value; paintGuru();};
+  startLiveClock();
   new Chart(document.getElementById('tpDistChart'), {
     type:'bar',
     data:{ labels:['TP1','TP2','TP3','TP4','TP5','TP6'],
@@ -1021,6 +1026,23 @@ async function paintGuru(){
 }
 const SCHOOL_YEAR_END = new Date(2026,11,4,23,59,59);
 const SCHOOL_YEAR_END_LABEL = '04 Disember 2026';
+const HARI_MS = ['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'];
+const BULAN_MS = ['Januari','Februari','Mac','April','Mei','Jun','Julai','Ogos','September','Oktober','November','Disember'];
+let _clockInterval = null;
+function tickLiveClock(){
+  const timeEl = document.getElementById('liveClockTime');
+  const dateEl = document.getElementById('liveClockDate');
+  if(!timeEl || !dateEl){ if(_clockInterval){ clearInterval(_clockInterval); _clockInterval=null; } return; }
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2,'0'), mm = String(d.getMinutes()).padStart(2,'0'), ss = String(d.getSeconds()).padStart(2,'0');
+  timeEl.textContent = `${hh}:${mm}:${ss}`;
+  dateEl.textContent = `${HARI_MS[d.getDay()]}, ${d.getDate()} ${BULAN_MS[d.getMonth()]} ${d.getFullYear()}`;
+}
+function startLiveClock(){
+  if(_clockInterval) clearInterval(_clockInterval);
+  tickLiveClock();
+  _clockInterval = setInterval(tickLiveClock, 1000);
+}
 function schoolYearDaysLeft(){
   const now = new Date();
   return Math.max(0, Math.ceil((SCHOOL_YEAR_END-now)/(1000*60*60*24)));

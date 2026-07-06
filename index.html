@@ -46,11 +46,14 @@ label{font-size:12px;font-weight:700;color:var(--tulisan-lembut);display:block;m
 }
 
 /* LOGIN */
-#loginView{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--krim);padding:20px;}
+#loginView{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;
+  background:linear-gradient(160deg, #DCEEE1 0%, #EAF3E6 35%, #F3EFDD 70%, #EFEAD8 100%);}
 .login-box{width:100%;max-width:390px;background:var(--kad);border-radius:20px;box-shadow:var(--shadow-lg);padding:36px 32px;border:1px solid var(--garis);}
 .login-mark{width:52px;height:52px;border-radius:14px;background:var(--hijau);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 16px;box-shadow:0 6px 16px rgba(20,60,40,.25);}
 .login-box h1{font-size:22px;margin:0 0 4px;text-align:center;}
-.login-box p.sub{color:var(--tulisan-lembut);font-size:13.5px;margin:0 0 24px;line-height:1.5;text-align:center;}
+.login-box p.sub{color:var(--tulisan-lembut);font-size:13px;margin:0 0 24px;line-height:1.4;text-align:center;}
+.login-box .sub-line1{display:block;font-size:14.5px;font-weight:700;color:var(--hijau-gelap);margin-bottom:3px;}
+.login-box .sub-line2{display:block;font-size:12.5px;font-weight:500;}
 .role-toggle{display:flex;gap:8px;margin-bottom:18px;background:var(--krim);padding:4px;border-radius:11px;}
 .role-toggle button{flex:1;padding:9px;border-radius:8px;border:none;background:transparent;font-size:13px;font-weight:700;color:var(--tulisan-lembut);transition:.15s;}
 .role-toggle button.active{background:var(--hijau);color:#fff;box-shadow:0 2px 6px rgba(20,60,40,.25);}
@@ -242,7 +245,7 @@ function initials(name){
 }
 
 /* ============ APP STATE ============ */
-let DB = { meta:null, students:[], evidenceAll:{}, notesAll:{}, overridesAll:{}, verifiedAll:{}, anecdotesAll:{}, activityLog:[] };
+let DB = { meta:null, students:[], evidenceAll:{}, notesAll:{}, overridesAll:{}, verifiedAll:{}, anecdotesAll:{}, activityLog:[], topicCriteria:{} };
 let SESSION = null;
 let VIEW = { page:'login', tab:'guru', classFilter:'ALL', studentId:null };
 
@@ -270,6 +273,15 @@ function jantinaOf(name){
   if(/\bbinti\b/i.test(name||'')) return 'P';
   if(/\bbin\b/i.test(name||'')) return 'L';
   return null;
+}
+function criteriaKey(year, topic){ return year+'|'+topic; }
+function getCriteria(year, topic){
+  return DB.topicCriteria[criteriaKey(year,topic)] || {rendah:'',sederhana:'',tinggi:''};
+}
+function hasCriteria(c){ return !!(c && (c.rendah||c.sederhana||c.tinggi)); }
+function studentGender(s){
+  if(s.gender==='L' || s.gender==='P') return s.gender;
+  return jantinaOf(s.name);
 }
 function yearsFromClasses(){
   const set = new Set();
@@ -330,9 +342,9 @@ function renderSetup(prefillErr){
 /* ============ INIT / SEED ============ */
 async function boot(){
   if(!API_URL){ renderSetup(); return; }
-  const [meta0, students0, evidenceAll0, notesAll0, overridesAll0, verifiedAll0, anecdotesAll0, activityLog0] = await Promise.all([
+  const [meta0, students0, evidenceAll0, notesAll0, overridesAll0, verifiedAll0, anecdotesAll0, activityLog0, topicCriteria0] = await Promise.all([
     sGet('meta'), sGet('students'), sGet('evidenceAll'), sGet('notesAll'), sGet('overridesAll'),
-    sGet('verifiedAll'), sGet('anecdotesAll'), sGet('activityLog')
+    sGet('verifiedAll'), sGet('anecdotesAll'), sGet('activityLog'), sGet('topicCriteria')
   ]);
   let meta = meta0;
   if(!meta){
@@ -362,6 +374,7 @@ async function boot(){
   DB.verifiedAll = verifiedAll0 || {};
   DB.anecdotesAll = anecdotesAll0 || {};
   DB.activityLog = activityLog0 || [];
+  DB.topicCriteria = topicCriteria0 || {};
   renderLogin();
 }
 
@@ -389,15 +402,13 @@ function renderLogin(){
     <div class="login-box">
       <div class="login-mark">ﷺ</div>
       <h1>Eviden PBD</h1>
-      <p class="sub">Panitia Pendidikan Islam &middot; Sistem Pengurusan Eviden &amp; Tahap Penguasaan</p>
+      <p class="sub"><span class="sub-line1">Panitia Pendidikan Islam</span><span class="sub-line2">Sistem Pengurusan Eviden &amp; Tahap Penguasaan</span></p>
       <div class="field"><label>Nama Pengguna</label><input id="liUser" placeholder="Nama pengguna"></div>
       <div class="field"><label>Kata Laluan</label><input id="liPass" type="password" placeholder="••••••••"></div>
       <button class="btn" style="width:100%" id="liBtn">Log Masuk</button>
       <div class="login-err" id="liErr"></div>
-      <div style="text-align:center;margin-top:14px;"><a href="#" id="reconfigLink" style="font-size:11.5px;color:var(--tulisan-lembut);">Tukar sambungan Google Sheets</a></div>
     </div>
   </div>`;
-  document.getElementById('reconfigLink').onclick=(e)=>{ e.preventDefault(); renderSetup(); };
   document.getElementById('liBtn').onclick=async ()=>{
     const u = document.getElementById('liUser').value.trim();
     const p = document.getElementById('liPass').value;
@@ -421,7 +432,8 @@ function appShell(activeKey, innerHTML){
     {key:'tajuk', label:'Tajuk', icon:'📚'},
     {key:'laporan', label:'Cetak Laporan', icon:'🖨️'},
     {key:'rujukan', label:'Rujukan TP', icon:'📖'},
-    {key:'log', label:'Log', icon:'🗒️'}
+    {key:'log', label:'Log', icon:'🗒️'},
+    {key:'selenggara', label:'Selenggara', icon:'⚙️'}
   ] : [
     {key:'dash', label:'Dashboard', icon:'🏠'},
     {key:'murid', label:'Murid', icon:'🎓'},
@@ -468,13 +480,14 @@ function tpOf(student){
 /* ============ ADMIN VIEW ============ */
 async function renderAdmin(){
   VIEW.page='admin';
-  if(!VIEW.tab || !['guru','murid','rekod','tajuk','laporan','rujukan','log'].includes(VIEW.tab)) VIEW.tab='guru';
+  if(!VIEW.tab || !['guru','murid','rekod','tajuk','laporan','rujukan','log','selenggara'].includes(VIEW.tab)) VIEW.tab='guru';
   if(VIEW.tab==='murid'){ await paintMurid(); return; }
   if(VIEW.tab==='rekod'){ await paintRekod(); return; }
   if(VIEW.tab==='tajuk'){ await paintTajuk(); return; }
   if(VIEW.tab==='laporan'){ await paintLaporan(); return; }
   if(VIEW.tab==='rujukan'){ await paintRujukan(); return; }
   if(VIEW.tab==='log'){ await paintLog(); return; }
+  if(VIEW.tab==='selenggara'){ await paintSelenggara(); return; }
   await paintAdmin();
 }
 async function paintAdmin(){
@@ -499,6 +512,7 @@ function navigateShared(k){
     else if(k==='rujukan') paintRujukan();
     else if(k==='log') paintLog();
     else if(k==='sampah') paintSampah();
+    else if(k==='selenggara') paintSelenggara();
     else { VIEW.tab=k; paintAdmin(); }
   } else {
     if(k==='dash') paintGuru();
@@ -509,6 +523,22 @@ function navigateShared(k){
     else if(k==='laporan') paintLaporan();
     else paintRujukan();
   }
+}
+
+async function paintSelenggara(){
+  VIEW.tab='selenggara';
+  const el = document.getElementById('app');
+  const content = `
+    <div class="page-head"><span class="eyebrow">Panel Pentadbir</span><h1>Selenggara Sistem</h1></div>
+    <div class="card">
+      <h2 style="margin-top:0;">🔗 Sambungan Google Sheets</h2>
+      <p style="font-size:12.5px;color:var(--tulisan-lembut);">URL Apps Script yang digunakan sistem ini untuk simpan/muat data.</p>
+      <div style="padding:10px 12px;background:var(--krim);border-radius:9px;font-size:12px;word-break:break-all;color:var(--tulisan-lembut);margin-bottom:12px;">${API_URL||'(tiada)'}</div>
+      <button class="btn ghost" onclick="renderSetup()">Tukar Sambungan Google Sheets</button>
+    </div>
+  `;
+  el.innerHTML = appShell('selenggara', content);
+  wireShellNav(navigateShared);
 }
 
 async function paintSampah(){
@@ -555,14 +585,53 @@ function adminTajukOnlyHTML(){
   const activeYear = years.includes(VIEW.tajukYear) ? VIEW.tajukYear : years[0];
   const subtabs = years.map(y=>`<button class="tajuk-subtab ${y===activeYear?'active':''}" data-y="${y}">Tahun ${y}</button>`).join('');
   const list = DB.meta.topics[activeYear] || [];
-  const rows = list.map((t,i)=>`<div class="ev-item" style="border:none;padding:8px 0;"><div class="ev-info"><span style="font-size:13.5px;">${i+1}. ${t}</span></div>${isAdmin?`<button class="btn danger" style="padding:4px 10px;font-size:12px;" onclick="removeTopic('${activeYear}',${i})">Padam</button>`:''}</div>`).join('');
+  const rows = list.map((t,i)=>{
+    const c = getCriteria(activeYear, t);
+    const done = hasCriteria(c);
+    return `<div class="ev-item" style="border:none;padding:8px 0;">
+      <div class="ev-info"><span style="font-size:13.5px;">${i+1}. ${t}</span></div>
+      <button class="btn ghost" style="padding:4px 10px;font-size:12px;" onclick="openCriteriaModal('${activeYear}',${i})">${done?'📋 Kriteria ✓':'📋 Kriteria'}</button>
+      ${isAdmin?`<button class="btn danger" style="padding:4px 10px;font-size:12px;" onclick="removeTopic('${activeYear}',${i})">Padam</button>`:''}
+    </div>`;
+  }).join('');
   return `
   <div class="tabs" style="margin:0 0 16px;">${subtabs}</div>
   <div class="card">
     <div class="section-head" style="margin-top:0;"><h2>Tahun ${activeYear} (${list.length} tajuk)</h2></div>
-    ${isAdmin ? `<div class="toolbar" style="margin:6px 0;"><input id="newTopic_${activeYear}" placeholder="Tajuk baharu Tahun ${activeYear}"><button class="btn gold" onclick="addTopic('${activeYear}')">Tambah</button></div>` : `<p style="font-size:12px;color:var(--tulisan-lembut);margin-top:-4px;">Untuk rujukan sahaja. Hanya Admin boleh tambah/padam tajuk.</p>`}
+    <p style="font-size:12px;color:var(--tulisan-lembut);margin-top:-6px;">Klik "📋 Kriteria" untuk tetapkan maksud Rendah/Sederhana/Tinggi khusus bagi tajuk tu (rujuk DSKP sebenar), supaya guru ada panduan tepat semasa menilai eviden.</p>
+    ${isAdmin ? `<div class="toolbar" style="margin:6px 0;"><input id="newTopic_${activeYear}" placeholder="Tajuk baharu Tahun ${activeYear}"><button class="btn gold" onclick="addTopic('${activeYear}')">Tambah</button></div>` : ''}
     <div>${rows || '<div class="empty" style="padding:20px;"><div class="em-ic">📚</div>Tiada tajuk lagi untuk Tahun '+activeYear+'.</div>'}</div>
   </div>`;
+}
+
+function openCriteriaModal(year, topicIdx){
+  const isAdmin = SESSION.role==='admin';
+  const topic = DB.meta.topics[year][topicIdx];
+  const c = getCriteria(year, topic);
+  showModal(`
+    <h3>Kriteria Penilaian</h3>
+    <p style="font-size:12.5px;color:var(--tulisan-lembut);margin-top:-6px;"><b>${topic}</b> &middot; Tahun ${year}</p>
+    <div class="field"><label>🔴 Rendah bermaksud</label><textarea id="critRendah" rows="2" ${isAdmin?'':'disabled'} placeholder="cth: Perlu bimbingan penuh guru...">${c.rendah||''}</textarea></div>
+    <div class="field"><label>🟡 Sederhana bermaksud</label><textarea id="critSederhana" rows="2" ${isAdmin?'':'disabled'} placeholder="cth: Boleh buat dengan sedikit bantuan...">${c.sederhana||''}</textarea></div>
+    <div class="field"><label>🟢 Tinggi bermaksud</label><textarea id="critTinggi" rows="2" ${isAdmin?'':'disabled'} placeholder="cth: Boleh buat sendiri dengan yakin & tepat...">${c.tinggi||''}</textarea></div>
+    <div class="modal-actions">
+      <button class="btn ghost" onclick="closeModal()">${isAdmin?'Batal':'Tutup'}</button>
+      ${isAdmin?`<button class="btn" onclick="saveCriteria('${year}',${topicIdx})">Simpan</button>`:''}
+    </div>
+  `);
+}
+async function saveCriteria(year, topicIdx){
+  const topic = DB.meta.topics[year][topicIdx];
+  const key = criteriaKey(year, topic);
+  const prev = DB.topicCriteria[key];
+  DB.topicCriteria[key] = {
+    rendah: document.getElementById('critRendah').value.trim(),
+    sederhana: document.getElementById('critSederhana').value.trim(),
+    tinggi: document.getElementById('critTinggi').value.trim()
+  };
+  const ok = await sSet('topicCriteria', DB.topicCriteria);
+  if(ok===null){ if(prev) DB.topicCriteria[key]=prev; else delete DB.topicCriteria[key]; toast('Gagal simpan. Cuba lagi.', true); return; }
+  closeModal(); toast('Kriteria disimpan.'); logActivity('Kemas Kini Kriteria Tajuk', topic); paintTajuk();
 }
 
 async function paintMurid(){
@@ -701,7 +770,7 @@ function adminMuridHTML(){
   const list = DB.students.filter(s=> !s.deleted && (cls==='ALL' || s.class===cls) && (!search || s.name.toLowerCase().includes(search)));
   const rows = list.map((s)=>{
     const idx = DB.students.indexOf(s);
-    const g = jantinaOf(s.name);
+    const g = studentGender(s);
     const gLabel = g==='P' ? '🧕🏻 Perempuan' : g==='L' ? '👦🏻 Lelaki' : '—';
     return `<tr><td><div class="trow"><div class="mini-avatar">${initials(s.name)}</div><b>${s.name}</b></div></td><td>${s.class}</td>
     <td style="white-space:nowrap;">${gLabel}</td>
@@ -760,7 +829,7 @@ function adminRekodHTML(){
     return `<tr style="cursor:pointer;" onclick="openStudent('${s.id}')"><td><div class="trow"><div class="mini-avatar">${initials(s.name)}</div><b>${s.name}</b></div></td><td>${s.class}</td>
     <td><span class="pill tp${tp}">TP${tp}</span></td><td>${evCount}</td>
     <td>${verified?'✅':'⏳'}</td>
-    <td style="color:var(--tulisan-lembut);font-size:12px;">Klik untuk lihat &rarr;</td></tr>`;
+    <td class="row-actions"><button class="btn ghost" onclick="event.stopPropagation(); openStudent('${s.id}')">Lihat</button></td></tr>`;
   }).join('');
   const opts = ['ALL',...DB.meta.classes].map(c=>`<option value="${c}" ${c===cls?'selected':''}>${c==='ALL'?'Semua Kelas':c}</option>`).join('');
   return `
@@ -843,12 +912,18 @@ async function deleteUser(i){
 
 /* --- Admin: student CRUD --- */
 function openStudentModal(editIdx=null){
-  const s = editIdx!=null ? DB.students[editIdx] : {name:'',class:DB.meta.classes[0]||''};
+  const s = editIdx!=null ? DB.students[editIdx] : {name:'',class:DB.meta.classes[0]||'',gender:''};
   const opts = DB.meta.classes.map(c=>`<option value="${c}" ${c===s.class?'selected':''}>${c}</option>`).join('');
+  const g = s.gender||'';
   showModal(`
     <h3>${editIdx!=null?'Edit Murid':'Tambah Murid'}</h3>
     <div class="field"><label>Nama Murid</label><input id="mSName" value="${s.name}"></div>
     <div class="field"><label>Kelas</label><select id="mSClass">${opts}</select></div>
+    <div class="field"><label>Jantina</label><select id="mSGender">
+      <option value="" ${g===''?'selected':''}>Auto (ikut Bin/Binti dalam nama)</option>
+      <option value="L" ${g==='L'?'selected':''}>👦🏻 Lelaki</option>
+      <option value="P" ${g==='P'?'selected':''}>🧕🏻 Perempuan</option>
+    </select></div>
     <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Batal</button>
     <button class="btn" onclick="saveStudent(${editIdx})">Simpan</button></div>
   `);
@@ -857,10 +932,11 @@ function editStudent(i){ openStudentModal(i); }
 async function saveStudent(editIdx){
   const name=document.getElementById('mSName').value.trim();
   const cls=document.getElementById('mSClass').value;
+  const gender=document.getElementById('mSGender').value;
   if(!name){ toast('Sila masukkan nama murid.', true); return; }
   let added=null;
-  if(editIdx!=null){ DB.students[editIdx].name=name; DB.students[editIdx].class=cls; }
-  else { added = {id:'s'+Date.now()+Math.floor(Math.random()*999), name, class:cls}; DB.students.push(added); }
+  if(editIdx!=null){ DB.students[editIdx].name=name; DB.students[editIdx].class=cls; DB.students[editIdx].gender=gender; }
+  else { added = {id:'s'+Date.now()+Math.floor(Math.random()*999), name, class:cls, gender}; DB.students.push(added); }
   const ok = await sSet('students', DB.students);
   if(ok===null){ toast('Gagal simpan ke Google Sheets. Cuba lagi.', true); if(added) DB.students.pop(); return; }
   closeModal(); toast('Murid disimpan.'); logActivity('Simpan Murid', name+' - '+cls); paintMurid();
@@ -1168,13 +1244,23 @@ function openEvidenceModal(){
   const today = new Date().toISOString().slice(0,10);
   showModal(`
     <h3>Upload Eviden — Tahun ${year}</h3>
-    <div class="field"><label>Tajuk Eviden</label><select id="evTopic">${topicOpts}</select></div>
+    <div class="field"><label>Tajuk Eviden</label><select id="evTopic" onchange="updateEvCriteriaHint('${year}')">${topicOpts}</select></div>
     <div class="field"><label>Tarikh</label><input type="date" id="evDate" value="${today}"></div>
     <div class="field"><label>Tahap Eviden (Penilaian Guru)</label><select id="evRating"><option value="3">Tinggi</option><option value="2" selected>Sederhana</option><option value="1">Rendah</option></select></div>
+    <div id="evCriteriaHint" style="font-size:12px;color:var(--tulisan-lembut);background:var(--krim);border-radius:9px;padding:9px 11px;margin:-6px 0 14px;line-height:1.5;"></div>
     <div class="field"><label>Fail (Gambar JPG/PNG atau PDF)</label><input type="file" id="evFile" accept="image/jpeg,image/png,application/pdf"></div>
     <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Batal</button>
     <button class="btn" id="evSaveBtn" onclick="saveEvidence()">Simpan Eviden</button></div>
   `);
+  updateEvCriteriaHint(year);
+}
+function updateEvCriteriaHint(year){
+  const topicEl = document.getElementById('evTopic');
+  const hintEl = document.getElementById('evCriteriaHint');
+  if(!topicEl || !hintEl) return;
+  const c = getCriteria(year, topicEl.value);
+  if(!hasCriteria(c)){ hintEl.innerHTML = '<i>Tiada kriteria khusus ditetapkan untuk tajuk ini lagi — guna pertimbangan profesional guru.</i>'; return; }
+  hintEl.innerHTML = `${c.rendah?`🔴 <b>Rendah:</b> ${c.rendah}<br>`:''}${c.sederhana?`🟡 <b>Sederhana:</b> ${c.sederhana}<br>`:''}${c.tinggi?`🟢 <b>Tinggi:</b> ${c.tinggi}`:''}`;
 }
 function compressImage(file, maxDim, quality){
   maxDim = maxDim||1280; quality = quality||0.72;
@@ -1205,15 +1291,26 @@ function openBulkUploadModal(){
     <h3>Upload Eviden Pukal</h3>
     <p style="font-size:12.5px;color:var(--tulisan-lembut);margin-top:-6px;">Satu fail untuk beberapa murid sekaligus (cth: gambar aktiviti kelas).</p>
     <div class="field"><label>Kelas</label><select id="bulkClass" onchange="renderBulkStudents()">${classOpts}</select></div>
-    <div class="field"><label>Tajuk Eviden</label><select id="bulkTopic"></select></div>
+    <div class="field"><label>Tajuk Eviden</label><select id="bulkTopic" onchange="updateBulkCriteriaHint()"></select></div>
     <div class="field"><label>Tarikh</label><input type="date" id="bulkDate" value="${new Date().toISOString().slice(0,10)}"></div>
     <div class="field"><label>Tahap Eviden</label><select id="bulkRating"><option value="3">Tinggi</option><option value="2" selected>Sederhana</option><option value="1">Rendah</option></select></div>
+    <div id="bulkCriteriaHint" style="font-size:12px;color:var(--tulisan-lembut);background:var(--krim);border-radius:9px;padding:9px 11px;margin:-6px 0 14px;line-height:1.5;"></div>
     <div class="field"><label>Fail (satu fail untuk semua murid dipilih)</label><input type="file" id="bulkFile" accept="image/jpeg,image/png,application/pdf"></div>
     <div class="field"><label>Pilih Murid</label><div id="bulkStudentList" style="max-height:180px;overflow-y:auto;border:1.5px solid var(--garis);border-radius:9px;padding:8px;"></div></div>
     <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Batal</button>
     <button class="btn" id="bulkSaveBtn" onclick="saveBulkEvidence()">Simpan untuk Murid Dipilih</button></div>
   `);
   renderBulkStudents();
+}
+function updateBulkCriteriaHint(){
+  const clsEl = document.getElementById('bulkClass');
+  const topicEl = document.getElementById('bulkTopic');
+  const hintEl = document.getElementById('bulkCriteriaHint');
+  if(!clsEl || !topicEl || !hintEl) return;
+  const year = yearOfClass(clsEl.value);
+  const c = getCriteria(year, topicEl.value);
+  if(!hasCriteria(c)){ hintEl.innerHTML = '<i>Tiada kriteria khusus ditetapkan untuk tajuk ini lagi — guna pertimbangan profesional guru.</i>'; return; }
+  hintEl.innerHTML = `${c.rendah?`🔴 <b>Rendah:</b> ${c.rendah}<br>`:''}${c.sederhana?`🟡 <b>Sederhana:</b> ${c.sederhana}<br>`:''}${c.tinggi?`🟢 <b>Tinggi:</b> ${c.tinggi}`:''}`;
 }
 function renderBulkStudents(){
   const cls = document.getElementById('bulkClass').value;
@@ -1224,6 +1321,7 @@ function renderBulkStudents(){
   const students = DB.students.filter(s=>!s.deleted && s.class===cls);
   const listEl = document.getElementById('bulkStudentList');
   listEl.innerHTML = students.map(s=>`<label style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;"><input type="checkbox" class="bulkStudentChk" value="${s.id}" checked> ${s.name}</label>`).join('') || '<div style="font-size:12.5px;color:var(--tulisan-lembut);">Tiada murid dalam kelas ini.</div>';
+  updateBulkCriteriaHint();
 }
 async function saveBulkEvidence(){
   const cls = document.getElementById('bulkClass').value;

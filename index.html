@@ -413,6 +413,12 @@ async function boot(){
   if(!DB.tpDescriptors["4"]){ DB.tpDescriptors["4"] = JSON.parse(JSON.stringify(SEED_TP_TEXT_YEAR4)); tpSeeded=true; }
   if(!DB.tpDescriptors["6"]){ DB.tpDescriptors["6"] = JSON.parse(JSON.stringify(SEED_TP_TEXT_YEAR6)); tpSeeded=true; }
   if(tpSeeded){ await sSet('tpDescriptors', DB.tpDescriptors); }
+  const savedUsername = localStorage.getItem('pbd_session_user');
+  if(savedUsername){
+    const found = DB.meta.users.find(x=>x.username===savedUsername);
+    if(found){ SESSION = found; if(found.role==='admin') { renderAdmin(); } else { renderGuru(); } return; }
+    localStorage.removeItem('pbd_session_user');
+  }
   renderLogin();
 }
 
@@ -453,12 +459,13 @@ function renderLogin(){
     const found = DB.meta.users.find(x=>x.username===u && x.password===p);
     if(!found){ document.getElementById('liErr').textContent='Nama pengguna atau kata laluan salah.'; return; }
     SESSION = found;
+    localStorage.setItem('pbd_session_user', found.username);
     if(found.role==='admin') renderAdmin(); else renderGuru();
   };
   document.getElementById('liPass').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('liBtn').click(); });
 }
 
-function logout(){ SESSION=null; renderLogin(); }
+function logout(){ SESSION=null; localStorage.removeItem('pbd_session_user'); renderLogin(); }
 
 /* ============ APP SHELL (TOP NAVBAR) ============ */
 function appShell(activeKey, innerHTML){
@@ -861,6 +868,7 @@ function adminMuridHTML(){
     <div class="toolbar">
       <select id="muridClassFilter">${opts}</select>
       <input id="muridSearch" placeholder="🔍 Cari nama murid…" value="${VIEW.searchTerm||''}" style="min-width:180px;">
+      <button class="btn ghost" onclick="openImportCSVModal()">⬆ Import CSV</button>
       <button class="btn ghost" onclick="navigateShared('sampah')">🗑️ Tong Sampah ${trashCount>0?'('+trashCount+')':''}</button>
     </div>
     <div class="table-scroll"><table><thead><tr><th>Nama</th><th>Kelas</th><th>Jantina</th><th>Status</th><th></th></tr></thead>
@@ -884,6 +892,8 @@ async function paintRekod(){
   wireShellNav(navigateShared);
   const f = document.getElementById('rekodClassFilter');
   if(f) f.onchange=()=>{VIEW.classFilter=f.value; paintRekod();};
+  const tpF = document.getElementById('rekodTPFilter');
+  if(tpF) tpF.onchange=()=>{VIEW.rekodTPFilter=tpF.value; paintRekod();};
   const sInput = document.getElementById('rekodSearch');
   if(sInput){
     sInput.oninput=()=>{VIEW.searchTerm=sInput.value; VIEW._focusSearch=true; paintRekod();};
@@ -894,7 +904,8 @@ async function paintRekod(){
 function adminRekodHTML(){
   const cls = VIEW.classFilter;
   const search = (VIEW.searchTerm||'').toLowerCase().trim();
-  const list = DB.students.filter(s=> !s.deleted && (cls==='ALL' || s.class===cls) && (!search || s.name.toLowerCase().includes(search)));
+  const tpFilter = VIEW.rekodTPFilter||'ALL';
+  const list = DB.students.filter(s=> !s.deleted && (cls==='ALL' || s.class===cls) && (!search || s.name.toLowerCase().includes(search)) && (tpFilter==='ALL' || tpOf(s)===Number(tpFilter)));
   const rows = list.map((s)=>{
     const tp = tpOf(s);
     const verified = !!DB.verifiedAll[s.id];
@@ -905,6 +916,7 @@ function adminRekodHTML(){
     <td class="row-actions"><button class="btn ghost" onclick="event.stopPropagation(); openStudent('${s.id}')">Lihat</button></td></tr>`;
   }).join('');
   const opts = ['ALL',...DB.meta.classes].map(c=>`<option value="${c}" ${c===cls?'selected':''}>${c==='ALL'?'Semua Kelas':c}</option>`).join('');
+  const tpOpts = ['ALL',1,2,3,4,5,6].map(t=>`<option value="${t}" ${String(t)===String(tpFilter)?'selected':''}>${t==='ALL'?'Semua TP':'TP'+t}</option>`).join('');
   return `
   <div class="card">
     <div class="toolbar" style="margin-top:0;">
@@ -913,6 +925,7 @@ function adminRekodHTML(){
     </div>
     <div class="toolbar">
       <select id="rekodClassFilter">${opts}</select>
+      <select id="rekodTPFilter">${tpOpts}</select>
       <input id="rekodSearch" placeholder="🔍 Cari nama murid…" value="${VIEW.searchTerm||''}" style="min-width:180px;">
     </div>
     <div class="table-scroll"><table><thead><tr><th>Nama</th><th>Kelas</th><th>TP</th><th>Eviden</th><th>Sah</th><th></th></tr></thead>
@@ -939,6 +952,11 @@ async function paintLaporan(){
       <h2 style="margin-top:0;">🏫 Laporan Tahunan Sekolah</h2>
       <p style="font-size:12.5px;color:var(--tulisan-lembut);">Gabungan semua kelas dengan purata TP sekolah — untuk hantar ke PPD/JPN di penghujung sesi.</p>
       <button class="btn gold" onclick="printSchoolReport()">Cetak Laporan Tahunan</button>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <h2 style="margin-top:0;">📋 Ringkasan Panitia (1 Muka Surat)</h2>
+      <p style="font-size:12.5px;color:var(--tulisan-lembut);">Ringkasan padat — purata TP, taburan TP, dan senarai murid kritikal (TP1–TP2) — untuk tunjuk terus kat GB atau mesyuarat panitia tanpa perlu cetak laporan penuh.</p>
+      <button class="btn gold" onclick="printPanitiaSummary()">Cetak Ringkasan Panitia</button>
     </div>
   `;
   el.innerHTML = appShell('laporan', content);
@@ -984,6 +1002,58 @@ async function deleteUser(i){
 }
 
 /* --- Admin: student CRUD --- */
+function openImportCSVModal(){
+  showModal(`
+    <h3>Import Murid dari CSV</h3>
+    <p style="font-size:12.5px;color:var(--tulisan-lembut);margin-top:-6px;">Fail CSV mesti ada header baris pertama: <code>Nama,Kelas</code> (lajur ke-3 Jantina — L atau P — adalah pilihan). Kelas yang belum wujud akan ditambah secara automatik.</p>
+    <div class="field"><label>Fail CSV</label><input type="file" id="csvFile" accept=".csv,text/csv"></div>
+    <div id="csvPreview" style="max-height:200px;overflow-y:auto;font-size:12px;color:var(--tulisan-lembut);"></div>
+    <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Batal</button>
+    <button class="btn" id="csvImportBtn" onclick="confirmImportCSV()" disabled>Import</button></div>
+  `);
+  document.getElementById('csvFile').onchange = handleCSVFileSelect;
+}
+let _csvParsedRows = [];
+function handleCSVFileSelect(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    const text = String(reader.result);
+    const lines = text.split(/\r?\n/).filter(l=>l.trim());
+    const rows = lines.slice(1).map(l=>{
+      const parts = l.split(',').map(s=>s.trim().replace(/^"|"$/g,''));
+      return {name:parts[0]||'', class:parts[1]||'', gender:(parts[2]||'').toUpperCase()};
+    }).filter(r=>r.name && r.class);
+    _csvParsedRows = rows;
+    const preview = rows.slice(0,10).map(r=>`<div>${r.name} — ${r.class}${r.gender?' — '+r.gender:''}</div>`).join('');
+    document.getElementById('csvPreview').innerHTML = rows.length ? `<b style="color:var(--hijau-gelap);">${rows.length} murid dikesan.</b><br>${preview}${rows.length>10?'<div>...dan '+(rows.length-10)+' lagi</div>':''}` : '<span style="color:var(--merah);">Tiada baris sah dikesan. Pastikan format: Nama,Kelas</span>';
+    document.getElementById('csvImportBtn').disabled = rows.length===0;
+  };
+  reader.readAsText(file);
+}
+async function confirmImportCSV(){
+  if(_csvParsedRows.length===0) return;
+  const btn = document.getElementById('csvImportBtn');
+  btn.disabled=true; btn.textContent='Mengimport...';
+  const newClasses = Array.from(new Set(_csvParsedRows.map(r=>r.class))).filter(c=>!DB.meta.classes.includes(c));
+  if(newClasses.length>0){
+    DB.meta.classes.push(...newClasses);
+    const okMeta = await sSet('meta', DB.meta);
+    if(okMeta===null){ newClasses.forEach(c=>{ const i=DB.meta.classes.indexOf(c); if(i>-1) DB.meta.classes.splice(i,1); }); toast('Gagal simpan kelas baharu. Cuba lagi.', true); btn.disabled=false; btn.textContent='Import'; return; }
+  }
+  const added = [];
+  _csvParsedRows.forEach(r=>{
+    const gender = (r.gender==='L'||r.gender==='P') ? r.gender : '';
+    const student = {id:'s'+Date.now()+Math.floor(Math.random()*99999), name:r.name, class:r.class, gender};
+    DB.students.push(student);
+    added.push(student);
+  });
+  const ok = await sSet('students', DB.students);
+  if(ok===null){ added.forEach(a=>{ const idx=DB.students.indexOf(a); if(idx>-1) DB.students.splice(idx,1); }); toast('Gagal import. Cuba lagi.', true); btn.disabled=false; btn.textContent='Import'; return; }
+  closeModal(); toast(added.length+' murid berjaya diimport.'); logActivity('Import CSV Murid', added.length+' murid'); paintMurid();
+}
+
 function openStudentModal(editIdx=null){
   const s = editIdx!=null ? DB.students[editIdx] : {name:'',class:DB.meta.classes[0]||'',gender:''};
   const opts = DB.meta.classes.map(c=>`<option value="${c}" ${c===s.class?'selected':''}>${c}</option>`).join('');
@@ -1117,6 +1187,17 @@ async function paintGuru(){
       <span class="pill" style="background:#FBEAE6;color:var(--merah);flex-shrink:0;">Belum ada eviden</span>
     </div>`).join('');
   const notifMore = noEvidence.length>6 ? `<div style="font-size:12px;color:var(--tulisan-lembut);text-align:center;padding-top:8px;">+${noEvidence.length-6} murid lagi</div>` : '';
+  const lowTP = activeStudents.filter(s=> s._evidence.length>0 && tpOf(s)<=2);
+  const lowTPRows = lowTP.slice(0,8).map(s=>`
+    <div class="ev-item" style="padding:9px 0;">
+      <div class="sc-avatar" style="width:34px;height:34px;font-size:11px;">${initials(s.name)}</div>
+      <div class="ev-info">
+        <div class="t" style="font-size:13px;">${s.name}</div>
+        <div class="d">${s.class} &middot; ${s._evidence.length} eviden</div>
+      </div>
+      <span class="pill tp${tpOf(s)}" style="flex-shrink:0;">TP${tpOf(s)}</span>
+    </div>`).join('');
+  const lowTPMore = lowTP.length>8 ? `<div style="font-size:12px;color:var(--tulisan-lembut);text-align:center;padding-top:8px;">+${lowTP.length-8} murid lagi</div>` : '';
   const classNames = DB.meta.classes;
   const classAvgs = classNames.map(c=>{
     const studs = activeStudents.filter(s=>s.class===c);
@@ -1150,6 +1231,11 @@ async function paintGuru(){
         ${notifRows || '<div class="empty" style="padding:16px;"><div class="em-ic">✅</div>Semua murid sudah ada eviden.</div>'}
         ${notifMore}
       </div>
+    </div>
+    <div class="section-head"><h2>🔻 TP Rendah (TP1–TP2)</h2></div>
+    <div class="card">
+      ${lowTPRows || '<div class="empty" style="padding:16px;"><div class="em-ic">✅</div>Tiada murid pada TP1/TP2 buat masa ini.</div>'}
+      ${lowTPMore}
     </div>
     <div class="section-head"><h2>Perbandingan TP Antara Kelas</h2></div>
     <div class="card"><canvas id="classCompChart" height="90"></canvas></div>
@@ -1244,6 +1330,10 @@ async function paintProfile(){
     </div>`).join('');
   const ancRows = anecdotes.map(a=>`<div class="ev-item" style="padding:9px 0;"><div class="ev-info"><div class="d" style="margin-bottom:2px;">${a.date}</div><div style="font-size:13px;">${a.text}</div></div>
       <button class="btn danger" style="padding:5px 10px;font-size:12px;" onclick="deleteAnecdote('${a.id}')">Padam</button></div>`).join('') || '<div class="empty" style="padding:16px;"><div class="em-ic">📝</div>Tiada anekdot direkod.</div>';
+  const studentYear = yearOfClass(s.class);
+  const totalTopics = (DB.meta.topics[studentYear]||[]).length;
+  const topicsCovered = new Set(s._evidence.map(e=>e.topic)).size;
+  const coveragePct = totalTopics>0 ? Math.round((topicsCovered/totalTopics)*100) : 0;
 
   const content = `
     <div class="no-print"><button class="btn ghost" onclick="navigateShared('${VIEW.profileFrom}')">&larr; Kembali ke Senarai</button></div>
@@ -1260,6 +1350,10 @@ async function paintProfile(){
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
         <div style="font-size:13px;color:var(--tulisan-lembut);">Deskriptor: <b style="color:var(--hijau);">${TP_DESC[tp]}</b> ${s._override!=null?`(Auto: TP${autoTP})`:''}</div>
         <span class="pill" style="background:${isVerified?'#E4F0E6':'#FBF1DE'};color:${isVerified?'var(--hijau-ok)':'#9A7623'};">${isVerified?'✅ Disahkan (Penyelarasan)':'⏳ Belum Disahkan'}</span>
+      </div>
+      <div style="margin-top:12px;">
+        <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--tulisan-lembut);margin-bottom:4px;"><span>Liputan Tajuk</span><span>${topicsCovered} / ${totalTopics} tajuk ada eviden</span></div>
+        <div class="sc-bar-track"><div class="sc-bar-fill" style="width:${coveragePct}%;background:${coveragePct>=80?'var(--hijau)':coveragePct>=40?'var(--emas)':'var(--merah)'}"></div></div>
       </div>
       <div class="toolbar no-print">
         <button class="btn gold" onclick="openEvidenceModal()">+ Upload Eviden</button>
@@ -1650,6 +1744,39 @@ function printSchoolReport(){
   `;
   window.print();
   logActivity('Cetak Laporan Tahunan Sekolah', '');
+}
+
+function printPanitiaSummary(){
+  const classNames = DB.meta.classes;
+  const activeStudents = DB.students.filter(s=>!s.deleted);
+  const overallAvg = (activeStudents.reduce((sum,s)=>sum+tpOf(s),0)/Math.max(1,activeStudents.length)).toFixed(2);
+  const tpCounts=[0,0,0,0,0,0];
+  activeStudents.forEach(s=>tpCounts[tpOf(s)-1]++);
+  const tpRows = tpCounts.map((c,i)=>`<tr><td>TP${i+1}</td><td>${c} murid</td></tr>`).join('');
+  const classRows = classNames.map(cls=>{
+    const list = activeStudents.filter(s=>s.class===cls);
+    if(list.length===0) return '';
+    const clsAvg = (list.reduce((sum,s)=>sum+tpOf(s),0)/list.length).toFixed(2);
+    return `<tr><td>${cls}</td><td>${list.length}</td><td>${clsAvg}</td></tr>`;
+  }).join('');
+  const critical = activeStudents.filter(s=>tpOf(s)<=2);
+  const criticalRows = critical.map(s=>`<tr><td>${s.name}</td><td>${s.class}</td><td>TP${tpOf(s)}</td></tr>`).join('') || '<tr><td colspan="3">Tiada murid TP1/TP2 buat masa ini.</td></tr>';
+  document.getElementById('printArea').innerHTML = `
+    <div class="pr-header"><div><h1>Ringkasan Panitia — Pendidikan Islam</h1><div style="font-size:12px;color:#555;">Dijana pada ${new Date().toLocaleDateString('ms-MY')}</div></div>
+    <div style="text-align:right;font-size:12px;"><b>SJK(C) Ladang Grisek</b><br>Kod: JBC1049 &middot; Sesi ${new Date().getFullYear()}</div></div>
+    <table class="pr-table"><tr><th style="width:30%">Jumlah Murid</th><td>${activeStudents.length}</td></tr>
+    <tr><th>Jumlah Kelas</th><td>${classNames.length}</td></tr>
+    <tr><th>Purata TP Sekolah</th><td>${overallAvg}</td></tr></table>
+    <h3 style="font-size:13.5px;margin-top:16px;">Taburan TP</h3>
+    <table class="pr-table"><thead><tr><th>Tahap</th><th>Bilangan Murid</th></tr></thead><tbody>${tpRows}</tbody></table>
+    <h3 style="font-size:13.5px;margin-top:16px;">Purata TP Setiap Kelas</h3>
+    <table class="pr-table"><thead><tr><th>Kelas</th><th>Bil. Murid</th><th>Purata TP</th></tr></thead><tbody>${classRows}</tbody></table>
+    <h3 style="font-size:13.5px;margin-top:16px;">Murid Kritikal (TP1–TP2) — ${critical.length} orang</h3>
+    <table class="pr-table"><thead><tr><th>Nama</th><th>Kelas</th><th>TP</th></tr></thead><tbody>${criticalRows}</tbody></table>
+    <div style="margin-top:24px;font-size:12px;">Disediakan oleh (Ketua Panitia): ______________________</div>
+  `;
+  window.print();
+  logActivity('Cetak Ringkasan Panitia', '');
 }
 
 function exportStudentsCSV(){

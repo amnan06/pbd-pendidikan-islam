@@ -245,7 +245,7 @@ function initials(name){
 }
 
 /* ============ APP STATE ============ */
-let DB = { meta:null, students:[], evidenceAll:{}, notesAll:{}, overridesAll:{}, verifiedAll:{}, anecdotesAll:{}, activityLog:[], topicCriteria:{} };
+let DB = { meta:null, students:[], evidenceAll:{}, notesAll:{}, overridesAll:{}, verifiedAll:{}, anecdotesAll:{}, activityLog:[], topicCriteria:{}, tpDescriptors:{} };
 let SESSION = null;
 let VIEW = { page:'login', tab:'guru', classFilter:'ALL', studentId:null };
 
@@ -313,6 +313,38 @@ const TP_INFO = {
     bullets:['Menghasilkan karya kreatif (tulisan khat, bercerita).','Menyelesaikan masalah dengan hikmah.','Memimpin rakan sebaya dalam kebaikan.']}
 };
 
+/* Tafsiran TP Keseluruhan khusus Tahun 3 (disediakan oleh guru, berdasarkan DSKP sebenar) */
+const SEED_TP_TEXT_YEAR3 = {
+ 1: "Boleh menguasai kemahiran asas bacaan dan hafazan surah al-Kafirun dan al-Asr serta tulisan jawi dengan bimbingan. Boleh menyatakan perkara asas berkaitan nama Allah al-'Alim dan al-Hakim, percaya kepada Kitab, penyelewengan akidah, bersuci daripada hadas besar, perkara membatalkan dan perkara sunat solat, penerimaan wahyu pertama dan sifat tabligh Rasulullah, hadis menghormati orang tua serta adab tidur, menuntut ilmu, bersyukur dan mengamalkan sunnah Rasulullah saw.",
+ 2: "Boleh menguasai kemahiran asas bacaan dan hafazan surah al-Kafirun dan al-Asr serta tulisan jawi dengan betul. Boleh menerangkan perkara asas berkaitan nama Allah al-'Alim dan al-Hakim, percaya kepada Kitab, penyelewengan akidah, bersuci daripada hadas besar, perkara membatalkan dan perkara sunat solat, penerimaan wahyu pertama dan sifat tabligh Rasulullah, hadis menghormati orang tua serta adab tidur, menuntut ilmu, bersyukur dan mengamalkan sunnah Rasulullah saw.",
+ 3: "Boleh menguasai kemahiran bacaan dan hafazan surah al-Kafirun dan al-Asr dengan betul dan bertajwid serta tulisan jawi dengan betul dan tepat. Boleh melaksanakan perkara asas berkaitan nama Allah al-'Alim dan al-Hakim, percaya kepada Kitab, penyelewengan akidah, bersuci daripada hadas besar, perkara membatalkan dan perkara sunat solat, penerimaan wahyu pertama dan sifat tabligh Rasulullah, hadis menghormati orang tua serta adab tidur, menuntut ilmu, bersyukur dan mengamalkan sunnah Rasulullah saw.",
+ 4: "Boleh menguasai kemahiran bacaan dan hafazan surah al-Kafirun dan al-Asr dengan betul dan bertajwid serta tulisan jawi dengan betul dan tepat serta mengamalkannya. Boleh menghurai dan mengamalkan perkara asas berkaitan nama Allah al-'Alim dan al-Hakim, percaya kepada Kitab, penyelewengan akidah, bersuci daripada hadas besar, perkara membatalkan dan perkara sunat solat, penerimaan wahyu pertama dan sifat tabligh Rasulullah, hadis menghormati orang tua serta adab tidur, menuntut ilmu, bersyukur dan mengamalkan sunnah Rasulullah saw.",
+ 5: "Boleh menguasai kemahiran bacaan dan hafazan surah al-Kafirun dan al-Asr dengan betul dan bertajwid serta tulisan jawi dengan betul dan tepat serta mengamalkannya dengan beradab. Boleh memberi hujah dan mengamalkan secara beradab perkara asas berkaitan nama Allah al-'Alim dan al-Hakim, percaya kepada Kitab, penyelewengan akidah, bersuci daripada hadas besar, perkara membatalkan dan perkara sunat solat, penerimaan wahyu pertama dan sifat tabligh Rasulullah, hadis menghormati orang tua serta adab tidur, menuntut ilmu, bersyukur dan mengamalkan sunnah Rasulullah saw.",
+ 6: "Boleh menguasai kemahiran bacaan dan hafazan surah al-Kafirun dan al-Asr dengan betul dan bertajwid serta tulisan jawi dengan betul, tepat dan tekal serta mengamalkannya dengan beradab dan istiqamah. Boleh merumus dan mengamalkan secara beradab dan istiqamah perkara asas berkaitan nama Allah al-'Alim dan al-Hakim, percaya kepada Kitab, penyelewengan akidah, bersuci daripada hadas besar, perkara membatalkan dan perkara sunat solat, penerimaan wahyu pertama dan sifat tabligh Rasulullah, hadis menghormati orang tua serta adab tidur, menuntut ilmu, bersyukur dan mengamalkan sunnah Rasulullah saw."
+};
+/* Tafsiran TP Keseluruhan khusus Tahun 4 (disediakan oleh guru, berdasarkan DSKP sebenar) */
+const SEED_TP_TEXT_YEAR4 = {
+ 1: "Menguasai kemahiran asas bacaan dan hafazan (surah at-Takaathur dan al-Qariah) dengan memberi penekanan kepada hukum tajwid dan menguasai kemahiran asas tulisan jawi dengan bimbingan. Menyatakan perkara asas berkaitan: al-Quran (kefahaman surah al-Ikhlas), akidah (nama Allah al-'Azim dan al-Hamid, beriman kepada Rasul, penyelewengan akidah), ibadah (bersuci daripada najis mukhaffafah, mutawassitah dan mughallazah, azan dan iqamat dan puasa Ramadan), hadis (memulia tetamu), sirah Nabi (Perjanjian Aqabah, sifat fathonah dan dakwah Nabi) dan adab (adab tidur, adab menuntut ilmu dan bersyukur).",
+ 2: "Menguasai kemahiran asas bacaan dan hafazan (surah at-Takaathur dan al-Qariah) dengan memberi penekanan kepada hukum tajwid dan menguasai kemahiran asas tulisan jawi dengan betul. Menerangkan perkara asas berkaitan: al-Quran (kefahaman surah al-Ikhlas), akidah (nama Allah al-'Azim dan al-Hamid, beriman kepada Rasul, penyelewengan akidah), ibadah (bersuci daripada najis mukhaffafah, mutawassitah dan mughallazah, azan dan iqamat dan puasa Ramadan), hadis (memulia tetamu), sirah Nabi (Perjanjian Aqabah, sifat fathonah dan dakwah Nabi) dan adab (adab tidur, adab menuntut ilmu dan bersyukur).",
+ 3: "Menguasai kemahiran asas bacaan dan hafazan (surah at-Takaathur dan al-Qariah) dengan memberi penekanan kepada hukum tajwid dan menguasai kemahiran asas tulisan jawi dengan betul dan tepat. Melaksanakan perkara asas berkaitan: al-Quran (kefahaman surah al-Ikhlas), akidah (nama Allah al-'Azim dan al-Hamid, beriman kepada Rasul, penyelewengan akidah), ibadah (bersuci daripada najis mukhaffafah, mutawassitah dan mughallazah, azan dan iqamat dan puasa Ramadan), hadis (memulia tetamu), sirah Nabi (Perjanjian Aqabah, sifat fathonah dan dakwah Nabi) dan adab (adab tidur, adab menuntut ilmu dan bersyukur).",
+ 4: "Menguasai kemahiran asas bacaan dan hafazan (surah at-Takaathur dan al-Qariah) dengan betul dan tepat serta mengamalkannya. Menghurai dan mengamalkan perkara asas berkaitan: al-Quran (kefahaman surah al-Ikhlas), akidah (nama Allah al-'Azim dan al-Hamid, beriman kepada Rasul, penyelewengan akidah), ibadah (bersuci daripada najis mukhaffafah, mutawassitah dan mughallazah, azan dan iqamat dan puasa Ramadan), hadis (memulia tetamu), sirah Nabi (Perjanjian Aqabah, sifat fathonah dan dakwah Nabi) dan adab (adab tidur, adab menuntut ilmu dan bersyukur).",
+ 5: "Menguasai kemahiran asas bacaan dan hafazan (surah at-Takaathur dan al-Qariah) dengan memberi penekanan kepada hukum tajwid dan menguasai kemahiran asas tulisan jawi dengan betul dan tepat serta mengamalkannya secara beradab. Memberi hujah dan mengamalkan secara beradab perkara asas berkaitan: al-Quran (kefahaman surah al-Ikhlas), akidah (nama Allah al-'Azim dan al-Hamid, beriman kepada Rasul, penyelewengan akidah), ibadah (bersuci daripada najis mukhaffafah, mutawassitah dan mughallazah, azan dan iqamat dan puasa Ramadan), hadis (memulia tetamu), sirah Nabi (Perjanjian Aqabah, sifat fathonah dan dakwah Nabi) dan adab (adab tidur, adab menuntut ilmu dan bersyukur).",
+ 6: "Menguasai kemahiran asas bacaan dan hafazan (surah at-Takaathur dan al-Qariah) dengan memberi penekanan kepada hukum tajwid dan menguasai kemahiran asas tulisan jawi dengan betul dan tepat serta mengamalkannya secara beradab dan istiqamah. Merumus dan mengamalkannya secara beradab dan istiqamah perkara asas berkaitan: al-Quran (kefahaman surah al-Ikhlas), akidah (nama Allah al-'Azim dan al-Hamid, beriman kepada Rasul, penyelewengan akidah), ibadah (bersuci daripada najis mukhaffafah, mutawassitah dan mughallazah, azan dan iqamat dan puasa Ramadan), hadis (memulia tetamu), sirah Nabi (Perjanjian Aqabah, sifat fathonah dan dakwah Nabi) dan adab (adab tidur, adab menuntut ilmu dan bersyukur). [Nota: baris TP6 dalam nota asal terpotong pada bahagian 'adab' — sila semak & lengkapkan semula melalui butang Edit.]"
+};
+/* Tafsiran TP Keseluruhan khusus Tahun 6 (disediakan oleh guru, berdasarkan DSKP sebenar) */
+const SEED_TP_TEXT_YEAR6 = {
+ 1: "Menguasai asas pengetahuan, kemahiran dan nilai yang berkaitan Al-Quran, Hadis, Akidah, Ibadah, Sirah, Adab dan Jawi mengikut keupayaan masing-masing dengan bimbingan guru sepenuhnya.",
+ 2: "Menjelaskan konsep atau menggunakan pengetahuan, kemahiran dan nilai secara praktik berkaitan Al-Quran, Hadis, Akidah, Ibadah, Sirah, Adab dan Jawi mengikut keupayaan masing-masing dengan bimbingan guru minima.",
+ 3: "Menjelaskan dan mengaplikasikan pengetahuan, kemahiran dan nilai berkaitan Al-Quran, Hadis, Akidah, Ibadah, Sirah, Adab dan Jawi mengikut keupayaan masing-masing dalam kehidupan harian dengan betul.",
+ 4: "Menghuraikan dan mengaplikasikan pengetahuan, kemahiran dan nilai berkaitan Al-Quran, Hadis, Akidah, Ibadah, Sirah, Adab dan Jawi yang dipelajari secara bersungguh-sungguh dan bertanggungjawab melaksanakannya dalam kehidupan seharian.",
+ 5: "Berkebolehan memberikan justifikasi dan istiqamah terhadap tindakan yang dilakukan dalam kehidupan harian berdasarkan pengetahuan, kemahiran dan nilai berkaitan Al-Quran, Hadis, Akidah, Ibadah, Sirah, Adab dan Jawi secara beradab.",
+ 6: "Berupaya memberi respon dengan pengetahuan dan mengaplikasikan kemahiran dan nilai berkaitan Al-Quran, Hadis, Akidah, Ibadah, Sirah, Adab dan Jawi yang dipelajari dalam bentuk perubahan tingkah yang boleh dicontohi atau boleh membimbing orang lain secara beradab dan istiqamah."
+};
+function getTPText(year, tp){
+  if(DB.tpDescriptors[year] && DB.tpDescriptors[year][tp]) return DB.tpDescriptors[year][tp];
+  return TP_INFO[tp].desc + ' ' + TP_INFO[tp].bullets.join(' ');
+}
+
 /* ============ SETUP SCREEN (Apps Script URL) ============ */
 function renderSetup(prefillErr){
   const el = document.getElementById('app');
@@ -342,9 +374,9 @@ function renderSetup(prefillErr){
 /* ============ INIT / SEED ============ */
 async function boot(){
   if(!API_URL){ renderSetup(); return; }
-  const [meta0, students0, evidenceAll0, notesAll0, overridesAll0, verifiedAll0, anecdotesAll0, activityLog0, topicCriteria0] = await Promise.all([
+  const [meta0, students0, evidenceAll0, notesAll0, overridesAll0, verifiedAll0, anecdotesAll0, activityLog0, topicCriteria0, tpDescriptors0] = await Promise.all([
     sGet('meta'), sGet('students'), sGet('evidenceAll'), sGet('notesAll'), sGet('overridesAll'),
-    sGet('verifiedAll'), sGet('anecdotesAll'), sGet('activityLog'), sGet('topicCriteria')
+    sGet('verifiedAll'), sGet('anecdotesAll'), sGet('activityLog'), sGet('topicCriteria'), sGet('tpDescriptors')
   ]);
   let meta = meta0;
   if(!meta){
@@ -375,6 +407,12 @@ async function boot(){
   DB.anecdotesAll = anecdotesAll0 || {};
   DB.activityLog = activityLog0 || [];
   DB.topicCriteria = topicCriteria0 || {};
+  DB.tpDescriptors = tpDescriptors0 || {};
+  let tpSeeded = false;
+  if(!DB.tpDescriptors["3"]){ DB.tpDescriptors["3"] = JSON.parse(JSON.stringify(SEED_TP_TEXT_YEAR3)); tpSeeded=true; }
+  if(!DB.tpDescriptors["4"]){ DB.tpDescriptors["4"] = JSON.parse(JSON.stringify(SEED_TP_TEXT_YEAR4)); tpSeeded=true; }
+  if(!DB.tpDescriptors["6"]){ DB.tpDescriptors["6"] = JSON.parse(JSON.stringify(SEED_TP_TEXT_YEAR6)); tpSeeded=true; }
+  if(tpSeeded){ await sSet('tpDescriptors', DB.tpDescriptors); }
   renderLogin();
 }
 
@@ -654,22 +692,33 @@ async function paintMurid(){
 
 async function paintRujukan(){
   VIEW.tab='rujukan';
+  if(!VIEW.rujukanYear) VIEW.rujukanYear='umum';
   const el = document.getElementById('app');
+  const isAdmin = SESSION.role==='admin';
+  const years = ['umum', ...Array.from(new Set([...yearsFromClasses(), '3','4','6'])).sort((a,b)=>Number(a)-Number(b))];
+  const activeYear = years.includes(VIEW.rujukanYear) ? VIEW.rujukanYear : 'umum';
+  const subtabs = years.map(y=>`<button class="tajuk-subtab rujukan-subtab ${y===activeYear?'active':''}" data-y="${y}">${y==='umum'?'TP Umum':'Tahun '+y}</button>`).join('');
+  const isUmum = activeYear==='umum';
+  const isCustomYear = !isUmum && !!DB.tpDescriptors[activeYear];
   const cards = [1,2,3,4,5,6].map(n=>{
     const t = TP_INFO[n];
-    const bullets = t.bullets.map(b=>`<li>${b}</li>`).join('');
+    const text = isUmum ? (t.desc+' '+t.bullets.join(' ')) : getTPText(activeYear, n);
     return `<div class="tpref-card" style="border-color:${t.color}">
       <div class="tpref-num" style="color:${t.color}">${n}</div>
       <div class="tpref-body">
-        <div class="tpref-title">TP${n} &middot; ${t.title} <span class="tpref-sub">(${t.sub})</span></div>
-        <p class="tpref-desc">${t.desc}</p>
-        <ul class="tpref-list">${bullets}</ul>
+        <div class="tpref-title">TP${n} &middot; ${t.title} <span class="tpref-sub">(${t.sub})</span>
+          ${(isAdmin && !isUmum)?`<button class="btn ghost" style="padding:3px 9px;font-size:11px;margin-left:8px;" onclick="openTPDescModal('${activeYear}',${n})">Edit</button>`:''}</div>
+        <p class="tpref-desc">${text}</p>
       </div>
     </div>`;
   }).join('');
+  const introText = isUmum
+    ? 'Panduan tafsiran generik Tahap Penguasaan (TP) Pendidikan Islam — sama untuk semua tahun, berdasarkan rangka am DSKP.'
+    : ('Tafsiran Tahap Penguasaan (TP) Keseluruhan Pendidikan Islam Sekolah Rendah.'+(isCustomYear?' Kandungan Tahun '+activeYear+' ini khusus berdasarkan DSKP.':' Tahun '+activeYear+' belum ada kandungan khusus — dipaparkan versi generik.'));
   const content = `
     <div class="page-head"><span class="eyebrow">Panduan</span><h1>Rujukan Deskriptor TP</h1></div>
-    <p style="font-size:13px;color:var(--tulisan-lembut);margin-top:-4px;">Panduan tafsiran Tahap Penguasaan (TP) Pendidikan Islam Sekolah Rendah, berdasarkan DSKP.</p>
+    <p style="font-size:13px;color:var(--tulisan-lembut);margin-top:-4px;">${introText}</p>
+    <div class="tabs" style="margin:0 0 16px;">${subtabs}</div>
     <div class="tpref-grid">${cards}</div>
     <div class="card" style="margin-top:16px;">
       <p style="font-size:11.5px;color:var(--tulisan-lembut);margin:0 0 10px;line-height:1.6;"><b style="color:var(--tulisan);">Catatan:</b><br>Pentaksiran dilakukan secara berterusan melalui pemerhatian, lisan dan penulisan. Rujuk DSKP untuk perincian lengkap.</p>
@@ -678,6 +727,29 @@ async function paintRujukan(){
   `;
   el.innerHTML = appShell('rujukan', content);
   wireShellNav(navigateShared);
+  document.querySelectorAll('.rujukan-subtab').forEach(b=>{
+    b.onclick=()=>{ VIEW.rujukanYear=b.dataset.y; paintRujukan(); };
+  });
+}
+
+function openTPDescModal(year, tp){
+  const current = getTPText(year, tp);
+  showModal(`
+    <h3>Edit Tafsiran TP${tp} — Tahun ${year}</h3>
+    <p style="font-size:12px;color:var(--tulisan-lembut);margin-top:-6px;">Salin terus daripada DSKP Pendidikan Islam Tahun ${year} sebenar.</p>
+    <div class="field"><textarea id="tpDescText" rows="6">${current}</textarea></div>
+    <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Batal</button>
+    <button class="btn" onclick="saveTPDesc('${year}',${tp})">Simpan</button></div>
+  `);
+}
+async function saveTPDesc(year, tp){
+  const text = document.getElementById('tpDescText').value.trim();
+  if(!DB.tpDescriptors[year]) DB.tpDescriptors[year] = {};
+  const prev = DB.tpDescriptors[year][tp];
+  DB.tpDescriptors[year][tp] = text;
+  const ok = await sSet('tpDescriptors', DB.tpDescriptors);
+  if(ok===null){ if(prev!=null) DB.tpDescriptors[year][tp]=prev; else delete DB.tpDescriptors[year][tp]; toast('Gagal simpan. Cuba lagi.', true); return; }
+  closeModal(); toast('Tafsiran TP disimpan.'); logActivity('Kemas Kini Tafsiran TP', 'Tahun '+year+' TP'+tp); paintRujukan();
 }
 
 async function paintLog(){

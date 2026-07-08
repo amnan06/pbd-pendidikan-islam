@@ -593,16 +593,19 @@ async function paintSampah(){
   const rows = trashed.map(s=>{
     const d = new Date(s.deletedAt);
     const dstr = isNaN(d) ? '' : d.toLocaleDateString('ms-MY');
-    return `<tr><td><div class="trow"><div class="mini-avatar">${initials(s.name)}</div><b>${s.name}</b></div></td><td>${s.class}</td><td style="font-size:12px;color:var(--tulisan-lembut);">${dstr}</td>
+    const reasonPill = s.deletedReason==='Pindah Sekolah'
+      ? `<span class="pill" style="background:#FFF3E0;color:#E65100;">🔄 Pindah Sekolah</span>`
+      : `<span class="pill" style="background:#FBEAE6;color:var(--merah);">🗑️ Dipadam</span>`;
+    return `<tr><td><div class="trow"><div class="mini-avatar">${initials(s.name)}</div><b>${s.name}</b></div></td><td>${s.class}</td><td>${reasonPill}</td><td style="font-size:12px;color:var(--tulisan-lembut);">${dstr}</td>
     <td class="row-actions"><button class="btn ghost" onclick="restoreStudent('${s.id}')">♻ Pulihkan</button>
     <button class="btn danger" onclick="permanentDeleteStudent('${s.id}')">Padam Kekal</button></td></tr>`;
   }).join('');
   const content = `
     <div class="page-head"><span class="eyebrow">${SESSION.role==='admin'?'Panel Pentadbir':'Dashboard Guru'}</span><h1>Tong Sampah</h1></div>
-    <p style="font-size:12.5px;color:var(--tulisan-lembut);margin-top:-4px;">Murid yang dipadam disimpan di sini. Boleh dipulihkan bila-bila masa, atau padam kekal jika sudah pasti.</p>
+    <p style="font-size:12.5px;color:var(--tulisan-lembut);margin-top:-4px;">Murid yang dipadam atau pindah sekolah disimpan di sini. Boleh dipulihkan bila-bila masa, atau padam kekal jika sudah pasti.</p>
     <div class="card">
-      <div class="table-scroll"><table><thead><tr><th>Nama</th><th>Kelas</th><th>Tarikh Padam</th><th></th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="4"><div class="empty"><div class="em-ic">🗑️</div>Tong sampah kosong.</div></td></tr>'}</tbody></table></div>
+      <div class="table-scroll"><table><thead><tr><th>Nama</th><th>Kelas</th><th>Sebab</th><th>Tarikh</th><th></th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="5"><div class="empty"><div class="em-ic">🗑️</div>Tong sampah kosong.</div></td></tr>'}</tbody></table></div>
     </div>
     <div class="no-print" style="margin-top:14px;"><button class="btn ghost" onclick="navigateShared('murid')">&larr; Kembali ke Senarai Murid</button></div>
   `;
@@ -1058,8 +1061,9 @@ function openStudentModal(editIdx=null){
   const s = editIdx!=null ? DB.students[editIdx] : {name:'',class:DB.meta.classes[0]||'',gender:''};
   const opts = DB.meta.classes.map(c=>`<option value="${c}" ${c===s.class?'selected':''}>${c}</option>`).join('');
   const g = s.gender||'';
+  const isEdit = editIdx!=null;
   showModal(`
-    <h3>${editIdx!=null?'Edit Murid':'Tambah Murid'}</h3>
+    <h3>${isEdit?'✏️ Edit Murid':'Tambah Murid'}</h3>
     <div class="field"><label>Nama Murid</label><input id="mSName" value="${s.name}"></div>
     <div class="field"><label>Kelas</label><select id="mSClass">${opts}</select></div>
     <div class="field"><label>Jantina</label><select id="mSGender">
@@ -1067,9 +1071,26 @@ function openStudentModal(editIdx=null){
       <option value="L" ${g==='L'?'selected':''}>👦🏻 Lelaki</option>
       <option value="P" ${g==='P'?'selected':''}>🧕🏻 Perempuan</option>
     </select></div>
-    <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Batal</button>
-    <button class="btn" onclick="saveStudent(${editIdx})">Simpan</button></div>
+    <div class="modal-actions" style="justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <div style="display:flex;gap:8px;">
+        ${isEdit?`<button class="btn gold" style="background:#FFF3E0;color:#E65100;border:1.5px solid #FFB74D;box-shadow:none;" onclick="pindahStudent(${editIdx})">🔄 Pindah Sekolah</button>`:''}
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn ghost" onclick="closeModal()">Batal</button>
+        <button class="btn" onclick="saveStudent(${editIdx})">Simpan</button>
+      </div>
+    </div>
   `);
+}
+async function pindahStudent(editIdx){
+  const s = DB.students[editIdx];
+  if(!confirm(`${s.name} akan ditandakan sebagai "Pindah Sekolah" dan dipindah ke Tong Sampah. Teruskan?`)) return;
+  s.deleted = true;
+  s.deletedAt = new Date().toISOString();
+  s.deletedReason = 'Pindah Sekolah';
+  const ok = await sSet('students', DB.students);
+  if(ok===null){ delete s.deleted; delete s.deletedAt; delete s.deletedReason; toast('Gagal simpan. Cuba lagi.', true); return; }
+  closeModal(); toast(s.name+' dipindahkan ke Tong Sampah (Pindah Sekolah).'); logActivity('Pindah Sekolah', s.name+' - '+s.class); paintMurid();
 }
 function editStudent(i){ openStudentModal(i); }
 async function saveStudent(editIdx){

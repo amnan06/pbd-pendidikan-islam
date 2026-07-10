@@ -245,7 +245,7 @@ function initials(name){
 }
 
 /* ============ APP STATE ============ */
-let DB = { meta:null, students:[], evidenceAll:{}, notesAll:{}, overridesAll:{}, verifiedAll:{}, anecdotesAll:{}, activityLog:[], topicCriteria:{}, tpDescriptors:{} };
+let DB = { meta:null, students:[], evidenceAll:{}, notesAll:{}, overridesAll:{}, verifiedAll:{}, anecdotesAll:{}, activityLog:[], topicCriteria:{}, tpDescriptors:{}, reminders:[], checklistAll:{} };
 let SESSION = null;
 let VIEW = { page:'login', tab:'guru', classFilter:'ALL', studentId:null };
 
@@ -374,9 +374,10 @@ function renderSetup(prefillErr){
 /* ============ INIT / SEED ============ */
 async function boot(){
   if(!API_URL){ renderSetup(); return; }
-  const [meta0, students0, evidenceAll0, notesAll0, overridesAll0, verifiedAll0, anecdotesAll0, activityLog0, topicCriteria0, tpDescriptors0] = await Promise.all([
+  const [meta0, students0, evidenceAll0, notesAll0, overridesAll0, verifiedAll0, anecdotesAll0, activityLog0, topicCriteria0, tpDescriptors0, reminders0, checklistAll0] = await Promise.all([
     sGet('meta'), sGet('students'), sGet('evidenceAll'), sGet('notesAll'), sGet('overridesAll'),
-    sGet('verifiedAll'), sGet('anecdotesAll'), sGet('activityLog'), sGet('topicCriteria'), sGet('tpDescriptors')
+    sGet('verifiedAll'), sGet('anecdotesAll'), sGet('activityLog'), sGet('topicCriteria'), sGet('tpDescriptors'),
+    sGet('reminders'), sGet('checklistAll')
   ]);
   let meta = meta0;
   if(!meta){
@@ -408,6 +409,8 @@ async function boot(){
   DB.activityLog = activityLog0 || [];
   DB.topicCriteria = topicCriteria0 || {};
   DB.tpDescriptors = tpDescriptors0 || {};
+  DB.reminders = reminders0 || [];
+  DB.checklistAll = checklistAll0 || {};
   let tpSeeded = false;
   if(!DB.tpDescriptors["3"]){ DB.tpDescriptors["3"] = JSON.parse(JSON.stringify(SEED_TP_TEXT_YEAR3)); tpSeeded=true; }
   if(!DB.tpDescriptors["4"]){ DB.tpDescriptors["4"] = JSON.parse(JSON.stringify(SEED_TP_TEXT_YEAR4)); tpSeeded=true; }
@@ -573,6 +576,19 @@ function navigateShared(k){
 async function paintSelenggara(){
   VIEW.tab='selenggara';
   const el = document.getElementById('app');
+  const today = new Date();
+  const remindRows = (DB.reminders||[]).map((r,i)=>{
+    const d = new Date(r.date);
+    const diff = Math.ceil((d-today)/(1000*60*60*24));
+    const status = diff<0 ? `<span style="color:var(--merah);font-size:11.5px;">Tamat ${Math.abs(diff)} hari lepas</span>` :
+                   diff===0 ? `<span style="color:var(--merah);font-weight:700;font-size:11.5px;">Hari ini!</span>` :
+                   diff<=7 ? `<span style="color:var(--emas-d);font-size:11.5px;">⚠️ ${diff} hari lagi</span>` :
+                   `<span style="color:var(--tulisan-lembut);font-size:11.5px;">${diff} hari lagi</span>`;
+    return `<div class="ev-item" style="padding:10px 0;">
+      <div class="ev-info"><div class="t">${r.title}</div><div class="d">${d.toLocaleDateString('ms-MY')} &middot; ${status}</div></div>
+      <button class="btn danger" style="padding:5px 10px;font-size:12px;" onclick="deleteReminder(${i})">Padam</button>
+    </div>`;
+  }).join('') || '<div class="empty" style="padding:16px;"><div class="em-ic">🔔</div>Tiada peringatan ditetapkan lagi.</div>';
   const content = `
     <div class="page-head"><span class="eyebrow">Panel Pentadbir</span><h1>Selenggara Sistem</h1></div>
     <div class="card">
@@ -581,9 +597,32 @@ async function paintSelenggara(){
       <div style="padding:10px 12px;background:var(--krim);border-radius:9px;font-size:12px;word-break:break-all;color:var(--tulisan-lembut);margin-bottom:12px;">${API_URL||'(tiada)'}</div>
       <button class="btn ghost" onclick="renderSetup()">Tukar Sambungan Google Sheets</button>
     </div>
+    <div class="card" style="margin-top:16px;">
+      <h2 style="margin-top:0;">🔔 Peringatan Tarikh</h2>
+      <p style="font-size:12.5px;color:var(--tulisan-lembut);">Tetapkan tarikh penting — ia akan dipaparkan sebagai notifikasi di dashboard semua guru.</p>
+      <div class="toolbar"><input id="remTitle" placeholder="cth: Deadline upload eviden Mesyuarat Panitia" style="flex:1;">
+      <input type="date" id="remDate" style="width:160px;">
+      <button class="btn gold" onclick="addReminder()">+ Tambah</button></div>
+      <div style="margin-top:8px;">${remindRows}</div>
+    </div>
   `;
   el.innerHTML = appShell('selenggara', content);
   wireShellNav(navigateShared);
+}
+async function addReminder(){
+  const title = document.getElementById('remTitle').value.trim();
+  const date = document.getElementById('remDate').value;
+  if(!title||!date){ toast('Sila isi tajuk dan tarikh peringatan.', true); return; }
+  DB.reminders.push({title, date});
+  const ok = await sSet('reminders', DB.reminders);
+  if(ok===null){ DB.reminders.pop(); toast('Gagal simpan. Cuba lagi.', true); return; }
+  toast('Peringatan ditambah.'); paintSelenggara();
+}
+async function deleteReminder(i){
+  const removed = DB.reminders.splice(i,1);
+  const ok = await sSet('reminders', DB.reminders);
+  if(ok===null){ DB.reminders.splice(i,0,removed[0]); toast('Gagal padam. Cuba lagi.', true); return; }
+  toast('Peringatan dipadam.'); paintSelenggara();
 }
 
 async function paintSampah(){
@@ -1129,8 +1168,8 @@ async function permanentDeleteStudent(id){
   const ok = await sSet('students', DB.students);
   if(ok===null){ DB.students.splice(idx,0,removed); toast('Gagal padam. Cuba lagi.', true); return; }
   delete DB.evidenceAll[removed.id]; delete DB.notesAll[removed.id]; delete DB.overridesAll[removed.id];
-  delete DB.verifiedAll[removed.id]; delete DB.anecdotesAll[removed.id];
-  await Promise.all([sSet('evidenceAll', DB.evidenceAll), sSet('notesAll', DB.notesAll), sSet('overridesAll', DB.overridesAll), sSet('verifiedAll', DB.verifiedAll), sSet('anecdotesAll', DB.anecdotesAll)]);
+  delete DB.verifiedAll[removed.id]; delete DB.anecdotesAll[removed.id]; delete DB.checklistAll[removed.id];
+  await Promise.all([sSet('evidenceAll', DB.evidenceAll), sSet('notesAll', DB.notesAll), sSet('overridesAll', DB.overridesAll), sSet('verifiedAll', DB.verifiedAll), sSet('anecdotesAll', DB.anecdotesAll), sSet('checklistAll', DB.checklistAll)]);
   toast('Murid dipadam kekal.'); logActivity('Padam Kekal Murid', removed.name+' - '+removed.class); paintSampah();
 }
 
@@ -1219,6 +1258,20 @@ async function paintGuru(){
       <span class="pill tp${tpOf(s)}" style="flex-shrink:0;">TP${tpOf(s)}</span>
     </div>`).join('');
   const lowTPMore = lowTP.length>8 ? `<div style="font-size:12px;color:var(--tulisan-lembut);text-align:center;padding-top:8px;">+${lowTP.length-8} murid lagi</div>` : '';
+  const today = new Date();
+  const activeReminders = (DB.reminders||[]).filter(r=>{ const d=new Date(r.date); return Math.ceil((d-today)/(1000*60*60*24)) >= -1; }).sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const reminderCards = activeReminders.map(r=>{
+    const d = new Date(r.date);
+    const diff = Math.ceil((d-today)/(1000*60*60*24));
+    const urgent = diff<=7;
+    const bg = diff<=0 ? 'background:#FBEAE6;border:1px solid #E57373;' : urgent ? 'background:#FFF8E1;border:1px solid var(--emas);' : 'background:#F1F8F4;border:1px solid var(--garis);';
+    const icon = diff<=0 ? '🚨' : urgent ? '⚠️' : '🗓️';
+    const label = diff<0 ? `Tamat ${Math.abs(diff)} hari lepas` : diff===0 ? 'Hari ini!' : `${diff} hari lagi`;
+    return `<div class="card" style="margin-top:8px;${bg}display:flex;align-items:center;gap:12px;padding:12px 16px;">
+      <span style="font-size:20px;">${icon}</span>
+      <div><b style="color:var(--hijau-gelap);font-size:13.5px;">${r.title}</b><br><span style="font-size:12px;color:var(--tulisan-lembut);">${d.toLocaleDateString('ms-MY')} — ${label}</span></div>
+    </div>`;
+  }).join('');
   const classNames = DB.meta.classes;
   const classAvgs = classNames.map(c=>{
     const studs = activeStudents.filter(s=>s.class===c);
@@ -1242,6 +1295,7 @@ async function paintGuru(){
       <span style="font-size:24px;">📢</span>
       <div><b style="color:var(--hijau-gelap);">Selamat datang, Cikgu ${SESSION.name}!</b><br><span style="color:var(--tulisan-lembut);">Tahun ini sekolah berakhir pada ${SCHOOL_YEAR_END_LABEL} (${schoolYearDaysLeft()} hari lagi).</span></div>
     </div>
+    ${reminderCards}
     <div class="two-col" style="margin-top:20px;">
       <div class="card">
         <h2 style="margin-top:0;">Taburan TP Keseluruhan</h2>
@@ -1355,6 +1409,18 @@ async function paintProfile(){
   const totalTopics = (DB.meta.topics[studentYear]||[]).length;
   const topicsCovered = new Set(s._evidence.map(e=>e.topic)).size;
   const coveragePct = totalTopics>0 ? Math.round((topicsCovered/totalTopics)*100) : 0;
+  const checklist = DB.checklistAll[s.id] || [];
+  const topicList = DB.meta.topics[studentYear] || [];
+  const checklistRows = topicList.map(t=>{
+    const checked = checklist.includes(t);
+    const hasEv = s._evidence.some(e=>e.topic===t);
+    return `<label style="display:flex;align-items:center;gap:9px;padding:7px 0;font-size:13px;cursor:pointer;border-bottom:1px solid var(--garis);">
+      <input type="checkbox" ${checked?'checked':''} onchange="toggleChecklist('${t.replace(/'/g,"\\'")}')" style="width:16px;height:16px;flex-shrink:0;">
+      <span style="flex:1;${checked?'color:var(--tulisan-lembut);text-decoration:line-through;':''}">${t}</span>
+      ${hasEv?'<span style="font-size:11px;color:var(--hijau-ok);flex-shrink:0;">📎 ada eviden</span>':''}
+    </label>`;
+  }).join('') || '<div class="empty" style="padding:16px;"><div class="em-ic">📚</div>Tiada tajuk untuk Tahun '+studentYear+'.</div>';
+  const checklistDone = topicList.filter(t=>checklist.includes(t)).length;
 
   const content = `
     <div class="no-print"><button class="btn ghost" onclick="navigateShared('${VIEW.profileFrom}')">&larr; Kembali ke Senarai</button></div>
@@ -1388,10 +1454,15 @@ async function paintProfile(){
         <h2 style="margin-top:0;">Senarai Eviden</h2>
         <div>${evRows}</div>
         ${trashedEv.length>0 ? `<div class="section-head" style="margin-top:18px;"><h2 style="font-size:14px;">🗑️ Tong Sampah Eviden (${trashedEv.length})</h2></div><div>${trashRows}</div>` : ''}
+        <div class="section-head" style="margin-top:22px;"><h2 style="font-size:15px;">✅ Senarai Semak Tajuk</h2><span style="font-size:11.5px;color:var(--tulisan-lembut);">${checklistDone}/${topicList.length} ditanda</span></div>
+        <p style="font-size:11.5px;color:var(--tulisan-lembut);margin-top:-6px;">Untuk pemerhatian lisan tanpa fail — tanda tajuk yang dah dinilai secara lisan.</p>
+        <div>${checklistRows}</div>
       </div>
       <div class="card">
         <h2 style="margin-top:0;">Taburan Penilaian</h2>
-        <canvas id="studTPChart" height="160"></canvas>
+        <canvas id="studTPChart" height="130"></canvas>
+        <h2 style="margin-top:18px;">Trend TP Mengikut Masa</h2>
+        <canvas id="studTrendChart" height="130"></canvas>
         <h2>Catatan Guru</h2>
         <div class="field"><label>Pemerhatian</label><textarea id="noteP" rows="2">${notes.p||''}</textarea></div>
         <div class="field"><label>Komen Prestasi</label><textarea id="noteK" rows="2">${notes.k||''}</textarea></div>
@@ -1412,8 +1483,48 @@ async function paintProfile(){
       datasets:[{data:[rHigh,rMid,rLow], backgroundColor:['#3E7A4E','#C79A4B','#B5493D'], borderRadius:8}]},
     options:{plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}}
   });
+  // Build TP trend by month
+  const sorted = s._evidence.slice().sort((a,b)=>a.date>b.date?1:-1);
+  const monthMap = {};
+  sorted.forEach(ev=>{
+    const m = (ev.date||'').slice(0,7);
+    if(!m) return;
+    if(!monthMap[m]) monthMap[m]=[];
+    monthMap[m].push(Number(ev.rating||1));
+  });
+  const months = Object.keys(monthMap).sort();
+  const trendLabels = months.map(m=>{ const [y,mo]=m.split('-'); return BULAN_MS[Number(mo)-1]+' '+y; });
+  const trendData = months.map(m=>{
+    const ratings = monthMap[m];
+    const avg = ratings.reduce((s,r)=>s+r,0)/ratings.length;
+    return Math.min(6,Math.max(1,Math.round((avg/3)*0.65+(ratings.length/6)*0.35*6)));
+  });
+  if(months.length>0){
+    new Chart(document.getElementById('studTrendChart'), {
+      type:'line',
+      data:{labels:trendLabels, datasets:[{label:'TP', data:trendData, borderColor:'#1B7A4B', backgroundColor:'rgba(27,122,75,.1)', tension:.4, pointBackgroundColor:'#1B7A4B', pointRadius:5, fill:true}]},
+      options:{plugins:{legend:{display:false}}, scales:{y:{min:1,max:6,ticks:{stepSize:1,callback:(v)=>'TP'+v}}}}
+    });
+  } else {
+    document.getElementById('studTrendChart').insertAdjacentHTML('afterend','<p style="font-size:12px;color:var(--tulisan-lembut);">Belum cukup data untuk papar trend.</p>');
+    document.getElementById('studTrendChart').style.display='none';
+  }
 }
 function ratingLabel(r){ return r==3?'Tinggi':r==2?'Sederhana':'Rendah'; }
+
+/* --- Senarai Semak Tajuk (pemerhatian lisan tanpa fail) --- */
+async function toggleChecklist(topic){
+  const s = DB.students.find(x=>x.id===VIEW.studentId);
+  if(!DB.checklistAll[s.id]) DB.checklistAll[s.id] = [];
+  const list = DB.checklistAll[s.id];
+  const idx = list.indexOf(topic);
+  const wasChecked = idx>-1;
+  if(wasChecked) list.splice(idx,1); else list.push(topic);
+  const ok = await sSet('checklistAll', DB.checklistAll);
+  if(ok===null){ if(wasChecked) list.push(topic); else list.splice(list.indexOf(topic),1); toast('Gagal simpan. Cuba lagi.', true); return; }
+  logActivity(wasChecked?'Nyah-tanda Senarai Semak':'Tanda Senarai Semak', s.name+' — '+topic);
+  paintProfile();
+}
 
 /* --- evidence CRUD --- */
 function openEvidenceModal(){

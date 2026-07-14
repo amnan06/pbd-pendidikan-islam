@@ -857,6 +857,15 @@ async function paintLog(){
         <button class="btn ghost" onclick="document.getElementById('importFileInput').click()">⬆ Import Backup</button>
         <input type="file" id="importFileInput" accept="application/json" style="display:none" onchange="importBackup(this.files[0])">
       </div>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px dashed var(--garis);">
+        <h3 style="font-size:14px;margin:0 0 4px;">🗄️ Muat Turun Whole System</h3>
+        <p style="font-size:12.5px;color:var(--tulisan-lembut);margin:0 0 12px;">Backup SEMUA key dalam Google Sheets (termasuk kriteria topik, deskriptor TP, peringatan, senarai semak, dan mana-mana key baharu di masa depan) — bukan setakat senarai tetap dalam kod. Guna ini sebagai backup utama sistem.</p>
+        <div class="toolbar">
+          <button class="btn gold" onclick="downloadFullSystemBackup()">⬇ Muat Turun Whole System</button>
+          <button class="btn danger" onclick="document.getElementById('importFullSystemInput').click()">⬆ Import Whole System</button>
+          <input type="file" id="importFullSystemInput" accept="application/json" style="display:none" onchange="importFullSystemBackup(this.files[0])">
+        </div>
+      </div>
     </div>
     <div class="section-head"><h2>Jejak Audit</h2></div>
     <p style="font-size:12.5px;color:var(--tulisan-lembut);margin-top:-4px;">Siapa buat perubahan, bila. Memaparkan 100 rekod terkini.</p>
@@ -904,6 +913,44 @@ async function importBackup(file){
     toast('Import berjaya.'); logActivity('Import Backup', file.name); paintLog();
   }catch(e){
     toast('Gagal membaca fail backup.', true);
+  }
+}
+
+async function downloadFullSystemBackup(){
+  toast('Menyediakan Whole System backup...');
+  const r = await apiCall({action:'getAllKV'}, 'POST');
+  if(r.__error){ toast('Gagal ambil Whole System backup dari Google Sheets.', true); return; }
+  const rawKV = r.data; // {key: rawStringValue, ...} — SEMUA key, termasuk yang akan datang
+  const backup = { exportedAt: new Date().toISOString(), type:'FULL_SYSTEM_BACKUP', kv: rawKV };
+  const blob = new Blob([JSON.stringify(backup,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'whole-system-backup-pbd-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  logActivity('Muat Turun Whole System', '');
+  toast('Whole System backup berjaya dimuat turun.');
+}
+
+async function importFullSystemBackup(file){
+  if(!file) return;
+  if(!confirm('Import Whole System akan GANTIKAN SEMUA key dalam Google Sheets dengan data dari fail backup ini. Tindakan ini serius dan tidak boleh dibatalkan. Teruskan?')) return;
+  try{
+    const text = await file.text();
+    const backup = JSON.parse(text);
+    if(!backup.kv || backup.type!=='FULL_SYSTEM_BACKUP'){ toast('Fail bukan Whole System backup yang sah.', true); return; }
+    toast('Mengimport Whole System backup...');
+    const keys = Object.keys(backup.kv);
+    for(const k of keys){
+      let parsed;
+      try{ parsed = JSON.parse(backup.kv[k]); }catch(e){ parsed = backup.kv[k]; }
+      const ok = await sSet(k, parsed);
+      if(ok===null){ toast('Gagal simpan key: '+k+'. Import dihentikan separa — sila cuba lagi.', true); return; }
+    }
+    toast('Import Whole System berjaya. Sila muat semula halaman (refresh).');
+    logActivity('Import Whole System', file.name);
+  }catch(e){
+    toast('Gagal membaca fail Whole System backup.', true);
   }
 }
 

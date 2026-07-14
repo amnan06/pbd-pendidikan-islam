@@ -212,33 +212,42 @@ tr:hover td{background:#F5F9F5;}
 const HARDCODED_API_URL = 'https://script.google.com/macros/s/AKfycbxpgN7f49vUE45AepyqZOWJinETbn7ucz052UtoM1xzVcSabpd1oF8yX-q73DEniT5H/exec';
 let API_URL = localStorage.getItem('pbd_api_url') || HARDCODED_API_URL;
 
-async function apiCall(payload){
-  if(!API_URL){ toast('Sambungan Google Sheets belum ditetapkan.', true); return null; }
+async function apiCall(payload, method='POST'){
+  if(!API_URL){ toast('Sambungan Google Sheets belum ditetapkan.', true); return {__error:true}; }
   try{
-    const res = await fetch(API_URL, {
-      method:'POST',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify(payload)
-    });
+    let res;
+    if(method==='GET'){
+      const params = new URLSearchParams(payload);
+      res = await fetch(API_URL+'?'+params.toString());
+    } else {
+      res = await fetch(API_URL, {
+        method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify(payload)
+      });
+    }
     const json = await res.json();
-    if(!json.ok){ toast('Ralat pelayan: '+(json.error||'tidak diketahui'), true); return null; }
-    return json.data;
+    if(!json.ok){ toast('Ralat pelayan: '+(json.error||'tidak diketahui'), true); return {__error:true}; }
+    return {__error:false, data:json.data};
   }catch(e){
     toast('Ralat menyimpan data: gagal hubungi Google Sheets.', true);
-    return null;
+    return {__error:true};
   }
 }
 async function sGet(key){
-  const raw = await apiCall({action:'get', key});
+  const result = await apiCall({action:'get', key}, 'GET');
+  if(result.__error) return undefined;
+  const raw = result.data;
   if(raw===null || raw===undefined) return null;
   try{ return JSON.parse(raw); }catch(e){ return null; }
 }
 async function sSet(key, value){
-  const r = await apiCall({action:'set', key, value: JSON.stringify(value)});
-  return r===null ? null : true;
+  const r = await apiCall({action:'set', key, value: JSON.stringify(value)}, 'POST');
+  return r.__error ? null : true;
 }
 async function uploadFileToDrive(filename, mimeType, base64){
-  return await apiCall({action:'uploadFile', filename, mimeType, base64});
+  const r = await apiCall({action:'uploadFile', filename, mimeType, base64}, 'POST');
+  return r.__error ? null : r.data;
 }
 function initials(name){
   return (name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
@@ -346,6 +355,19 @@ function getTPText(year, tp){
 }
 
 /* ============ SETUP SCREEN (Apps Script URL) ============ */
+function renderBootError(failedKeys){
+  const el = document.getElementById('app');
+  el.innerHTML = `
+  <div id="loginView">
+    <div class="login-box" style="width:420px;">
+      <div class="login-mark">⚠️</div>
+      <h1>Gagal Muat Data</h1>
+      <p class="sub">Sistem gagal hubungi Google Sheets sepenuhnya (${failedKeys.join(', ')}). Untuk elak risiko menimpa data sedia ada, sistem BERHENTI di sini dan tidak memuatkan aplikasi.</p>
+      <button class="btn" style="width:100%" onclick="location.reload()">🔄 Cuba Semula</button>
+      <div class="login-hint">Kalau masalah berterusan, semak sambungan internet atau tetapan Apps Script di Selenggara. Data sedia ada di Google Sheets Am <b>selamat</b> — sistem sengaja tidak bertindak sehingga sambungan pulih.</div>
+    </div>
+  </div>`;
+}
 function renderSetup(prefillErr){
   const el = document.getElementById('app');
   el.innerHTML = `
@@ -379,8 +401,23 @@ async function boot(){
     sGet('verifiedAll'), sGet('anecdotesAll'), sGet('activityLog'), sGet('topicCriteria'), sGet('tpDescriptors'),
     sGet('reminders'), sGet('checklistAll')
   ]);
+  // CRITICAL SAFETY CHECK: undefined means the fetch genuinely FAILED (network/server error) —
+  // this is different from null (confirmed: key doesn't exist yet). We must NEVER treat a failed
+  // fetch as "empty" and reseed/overwrite, or real data gets destroyed. Retry instead.
+  const criticalKeys = {
+    meta:meta0, students:students0, evidenceAll:evidenceAll0, notesAll:notesAll0,
+    overridesAll:overridesAll0, verifiedAll:verifiedAll0, anecdotesAll:anecdotesAll0,
+    activityLog:activityLog0, topicCriteria:topicCriteria0, tpDescriptors:tpDescriptors0,
+    reminders:reminders0, checklistAll:checklistAll0
+  };
+  const failedKeys = Object.keys(criticalKeys).filter(k=>criticalKeys[k]===undefined);
+  if(failedKeys.length>0){
+    renderBootError(failedKeys);
+    return;
+  }
   let meta = meta0;
-  if(!meta){
+  if(meta===null){
+    // confirmed empty sheet — safe to seed fresh defaults
     meta = {
       users:[{username:'admin', password:'admin123', role:'admin', name:'Pentadbir Sistem'}],
       classes:[...DEFAULT_CLASSES],
